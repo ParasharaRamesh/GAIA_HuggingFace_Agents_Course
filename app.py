@@ -97,8 +97,71 @@ def submit_answers(username, agent_code, answers_payload):
         print(status_message)
         return status_message
 
+def get_random_question():
+    print(f"Fetching a random question from: {random_question_url}")
+    try:
+        response = requests.get(random_question_url, timeout=15)
+        response.raise_for_status()
+        question_data = response.json()
+        if not question_data:
+            err_msg = "Fetched random question is empty or in invalid format."
+            print(err_msg)
+            return None, err_msg
+        print(f"Fetched random question with task_id: {question_data.get('task_id', 'N/A')}")
+        return question_data, None
+    except requests.exceptions.RequestException as e:
+        err_msg = f"Error fetching random question: {e}"
+        print(err_msg)
+        return None, err_msg
+    except requests.exceptions.JSONDecodeError as e:
+        err_msg = f"Error decoding JSON response from random question endpoint: {e} | Response text: {response.text[:500]}"
+        print(err_msg)
+        return None, err_msg
+    except Exception as e:
+        err_msg = f"Unexpected error fetching random question: {e}"
+        print(err_msg)
+        return None, err_msg
 
-# TODO. add function for fetching a random question + gradio button
+def evaluate_random_question(profile: gr.OAuthProfile | None):
+    """
+    Fetches a random question, runs the BasicAgent on it,
+    and displays the result.
+    """
+    if profile:
+        username = f"{profile.username}"
+        print(f"User logged in: {username}")
+    else:
+        print("User not logged in.")
+        return "Please Login to Hugging Face with the button.", None
+
+    agent_code = get_agent_code_link()
+    if not agent_code:
+        return "Error getting the agent code link from the SPACE_ID environment variable", None
+
+    # Instantiate Agent
+    try:
+        agent = BasicAgent()
+    except Exception as e:
+        error_msg = f"Error instantiating agent: {e}"
+        return error_msg, None
+
+    # Fetch random question
+    random_question, error_msg = get_random_question()
+    if error_msg:
+        return error_msg, None
+
+    # Wrap random_question in a list
+    answers_payload, results_log = run_agent(agent, [random_question])
+
+    if not answers_payload or len(answers_payload) == 0:
+        print("Agent did not produce any answer for the random question.")
+        return "Agent did not produce any answer for the random question.", pd.DataFrame(results_log)
+
+    # No submission to server for a single random question.
+    status_message = "✅ Agent evaluated the random question successfully!"
+    results_df = pd.DataFrame(results_log)
+    return status_message, results_df
+
 
 # TODO. add function for fetching a file associated with a task_id if it exists. But before that check if all questions have such metadata or are there more in the different levels.
 
@@ -214,6 +277,15 @@ with gr.Blocks() as demo:
 
     run_button.click(
         fn=run_and_submit_all,
+        outputs=[status_output, results_table]
+    )
+
+    # Button to run the agent on a single random question
+    run_random_button = gr.Button("Evaluate on Random Question")
+
+    # Bind this button to the evaluate_random_question method
+    run_random_button.click(
+        fn=evaluate_random_question,
         outputs=[status_output, results_table]
     )
 
