@@ -213,7 +213,7 @@ def run_agent(agent, questions_data):
                 results_log.append(item)
                 continue  # Skip this task and move to next
 
-        print(f"Running agent on question: {item}")
+        print(f"Running agent on question: {question_text}, has file associated with it ? : {fetched_path != None} \n")
 
         try:
             submitted_answer = agent(question_text, fetched_path)
