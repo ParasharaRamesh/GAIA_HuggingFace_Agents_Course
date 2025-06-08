@@ -1,6 +1,7 @@
 Todo:
 
 * Refer to one of the submissions ->
+
      - https://huggingface.co/spaces/fisherman611/gaia-agent
 * create template from (https://huggingface.co/spaces/agents-course/Final_Assignment_Template)
     - figure out how to integrate with github for private development locally
