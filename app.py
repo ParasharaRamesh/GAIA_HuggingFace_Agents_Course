@@ -197,7 +197,7 @@ def run_agent(agent, questions_data):
         question_text = item.get("question")
         file_name = item.get("file_name")
 
-        print("\n" + "-" * 30 + f"|START {i}|" + "-" * 30)
+        print("\n" + "-" * 30 + f"|START {i+1}|" + "-" * 30)
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
@@ -213,7 +213,8 @@ def run_agent(agent, questions_data):
                 results_log.append(item)
                 continue  # Skip this task and move to next
 
-        print(f"Running agent on question: {question_text}, has file associated with it ? : {fetched_path != None} \n")
+        print(f"Running agent on question: {question_text}. \n")
+        print(f"Question has file associated with it ? : {fetched_path != None} \n")
 
         try:
             submitted_answer = agent(question_text, fetched_path)
@@ -225,7 +226,7 @@ def run_agent(agent, questions_data):
             item["submitted_answer"] = err_msg
 
         results_log.append(item)
-        print("-" * 30 + f"|END {i}|" + "-" * 30 + "\n")
+        print("-" * 30 + f"|END {i+1}|" + "-" * 30 + "\n")
 
     print(f"Finished running agent on {len(questions_data)} questions...!\n")
     return answers_payload, results_log
