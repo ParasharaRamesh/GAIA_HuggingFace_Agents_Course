@@ -3,6 +3,8 @@ import gradio as gr
 import requests
 import inspect
 import pandas as pd
+import re
+import mimetypes
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -27,6 +29,21 @@ class BasicAgent:
 
 
 # Helper methods
+
+
+def get_agent_code_link():
+    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
+    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
+    try:
+        if space_id:
+            agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
+            print(f"Agent code is present @ {agent_code}")
+            return agent_code
+        return None
+    except Exception as e:
+        print(f"Error getting agent code link: {e}")
+        return None
+
 def fetch_questions():
     print(f"Fetching questions from: {questions_url}")
     try:
@@ -52,50 +69,6 @@ def fetch_questions():
         err_msg = f"Unexpected error fetching questions: {e}"
         print(err_msg)
         return None, err_msg
-
-
-def submit_answers(username, agent_code, answers_payload):
-    submission_data = {
-        "username": username.strip(),
-        "agent_code": agent_code,
-        "answers": answers_payload
-    }
-    print(f"Agent finished. Submitting {len(answers_payload)} answers for user '{username}' to: {submit_url}")
-    try:
-        response = requests.post(submit_url, json=submission_data, timeout=60)
-        response.raise_for_status()
-        result_data = response.json()
-        final_status = (
-            f"Submission Successful!\n"
-            f"User: {result_data.get('username')}\n"
-            f"Overall Score: {result_data.get('score', 'N/A')}% "
-            f"({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)\n"
-            f"Message: {result_data.get('message', 'No message received.')}"
-        )
-        print("Submission successful :) !!")
-        return final_status
-    except requests.exceptions.HTTPError as e:
-        error_detail = f"Server responded with status {e.response.status_code}."
-        try:
-            error_json = e.response.json()
-            error_detail += f" Detail: {error_json.get('detail', e.response.text)}"
-        except requests.exceptions.JSONDecodeError:
-            error_detail += f" Response: {e.response.text[:500]}"
-        status_message = f"Submission Failed: {error_detail}"
-        print(status_message)
-        return status_message
-    except requests.exceptions.Timeout:
-        status_message = "Submission Failed: The request timed out."
-        print(status_message)
-        return status_message
-    except requests.exceptions.RequestException as e:
-        status_message = f"Submission Failed: Network error - {e}"
-        print(status_message)
-        return status_message
-    except Exception as e:
-        status_message = f"An unexpected error occurred during submission: {e}"
-        print(status_message)
-        return status_message
 
 
 def get_random_question():
@@ -165,8 +138,49 @@ def evaluate_random_question(profile: gr.OAuthProfile | None):
     return status_message, results_df
 
 
-# TODO. add function for fetching a file associated with a task_id if it exists. But before that check if all questions have such metadata or are there more in the different levels.
+def get_task_file(task_id: str, save_dir="downloads"):
+    """
+    Downloads the file associated with the given task_id and saves it locally.
+    If no filename is provided by the server, uses the content type to determine an extension.
+    """
+    os.makedirs(save_dir, exist_ok=True)
 
+    # 1️⃣ Check if any file with the task_id prefix already exists
+    for filename in os.listdir(save_dir):
+        if filename.startswith(task_id):
+            existing_path = os.path.join(save_dir, filename)
+            print(f"File already exists for task {task_id}: {existing_path}")
+            return existing_path  # Skip downloading, reuse existing file
+
+    # 2️⃣ Download if no existing file
+    file_url = f"{get_file_url}{task_id}"
+    try:
+        print(f"Attempting to download file for task {task_id} from {file_url}...")
+        response = requests.get(file_url, timeout=30)
+        response.raise_for_status()
+
+        # 1. Extract filename from Content-Disposition using regex for robustness
+        content_disp = response.headers.get("Content-Disposition", "")
+        filename = None
+        match = re.search(r'filename="?([^";]+)"?', content_disp, re.IGNORECASE)
+
+        if match:
+            filename = match.group(1)
+        else:
+            # 2. Fallback: use content type for extension
+            content_type = response.headers.get("Content-Type", "").split(";")[0]
+            extension = mimetypes.guess_extension(content_type) or ""
+            filename = f"{task_id}_file{extension}"
+
+        local_path = os.path.join(save_dir, filename)
+        with open(local_path, "wb") as f:
+            f.write(response.content)
+
+        print(f"File downloaded and saved to: {local_path}")
+        return local_path
+    except Exception as e:
+        print(f"Error downloading file for task {task_id}: {e}")
+        return None
 
 def run_agent(agent, questions_data):
     results_log = []
@@ -176,9 +190,21 @@ def run_agent(agent, questions_data):
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
+        file_name = item.get("file_name")
+
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
+
+        # ✅ Check if there is an associated file and attempt to fetch it
+        if file_name and len(file_name.strip()) > 1:
+            fetched_path = get_task_file(task_id)  # Function we defined earlier
+            if not fetched_path:
+                err_msg = f"FILE DOWNLOAD ERROR for task {task_id}"
+                print(err_msg)
+                item["submitted_answer"] = err_msg
+                results_log.append(item)
+                continue  # Skip this task and move to next
 
         print(f"Running agent on question: {item}")
 
@@ -195,6 +221,48 @@ def run_agent(agent, questions_data):
 
     return answers_payload, results_log
 
+def submit_answers(username, agent_code, answers_payload):
+    submission_data = {
+        "username": username.strip(),
+        "agent_code": agent_code,
+        "answers": answers_payload
+    }
+    print(f"Agent finished. Submitting {len(answers_payload)} answers for user '{username}' to: {submit_url}")
+    try:
+        response = requests.post(submit_url, json=submission_data, timeout=60)
+        response.raise_for_status()
+        result_data = response.json()
+        final_status = (
+            f"Submission Successful!\n"
+            f"User: {result_data.get('username')}\n"
+            f"Overall Score: {result_data.get('score', 'N/A')}% "
+            f"({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)\n"
+            f"Message: {result_data.get('message', 'No message received.')}"
+        )
+        print("Submission successful :) !!")
+        return final_status
+    except requests.exceptions.HTTPError as e:
+        error_detail = f"Server responded with status {e.response.status_code}."
+        try:
+            error_json = e.response.json()
+            error_detail += f" Detail: {error_json.get('detail', e.response.text)}"
+        except requests.exceptions.JSONDecodeError:
+            error_detail += f" Response: {e.response.text[:500]}"
+        status_message = f"Submission Failed: {error_detail}"
+        print(status_message)
+        return status_message
+    except requests.exceptions.Timeout:
+        status_message = "Submission Failed: The request timed out."
+        print(status_message)
+        return status_message
+    except requests.exceptions.RequestException as e:
+        status_message = f"Submission Failed: Network error - {e}"
+        print(status_message)
+        return status_message
+    except Exception as e:
+        status_message = f"An unexpected error occurred during submission: {e}"
+        print(status_message)
+        return status_message
 
 # Main method
 def run_and_submit_all(profile: gr.OAuthProfile | None):
@@ -238,20 +306,6 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     final_status = submit_answers(username, agent_code, answers_payload)
     results_df = pd.DataFrame(results_log)
     return final_status, results_df
-
-
-def get_agent_code_link():
-    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
-    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
-    try:
-        if space_id:
-            agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
-            print(f"Agent code is present @ {agent_code}")
-            return agent_code
-        return None
-    except Exception as e:
-        print(f"Error getting agent code link: {e}")
-        return None
 
 
 # --- Build Gradio Interface using Blocks ---
