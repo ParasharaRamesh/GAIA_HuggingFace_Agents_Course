@@ -21,8 +21,11 @@ class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
 
-    def __call__(self, question: str) -> str:
-        print(f"Agent received question (first 50 chars): {question[:50]}...")
+    def __call__(self, question: str, path: str|None) -> str:
+        print(f"Agent received question (first 50 chars): {question[:50]}")
+        if path:
+            print(f"Question requires file present at path: {path}")
+
         fixed_answer = "This is a default answer."
         print(f"Agent returning fixed answer: {fixed_answer}")
         return fixed_answer
@@ -197,6 +200,7 @@ def run_agent(agent, questions_data):
             continue
 
         # ✅ Check if there is an associated file and attempt to fetch it
+        fetched_path = None
         if file_name and len(file_name.strip()) > 1:
             fetched_path = get_task_file(task_id)  # Function we defined earlier
             if not fetched_path:
@@ -209,7 +213,7 @@ def run_agent(agent, questions_data):
         print(f"Running agent on question: {item}")
 
         try:
-            submitted_answer = agent(question_text)
+            submitted_answer = agent(question_text, fetched_path)
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
             item["submitted_answer"] = submitted_answer
         except Exception as e:
