@@ -21,7 +21,7 @@ class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
 
-    def __call__(self, question: str, path: str|None) -> str:
+    def __call__(self, question: str, path: str | None) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}")
         if path:
             print(f"Question requires file present at path: {path}")
@@ -47,8 +47,9 @@ def get_agent_code_link():
         print(f"Error getting agent code link: {e}")
         return None
 
+
 def fetch_questions():
-    print(f"Fetching questions from: {questions_url}")
+    print(f"\nFetching questions from: {questions_url}")
     try:
         response = requests.get(questions_url, timeout=15)
         response.raise_for_status()
@@ -58,7 +59,7 @@ def fetch_questions():
             print(err_msg)
             return None, err_msg
 
-        print(f"Fetched {len(questions_data)} questions.")
+        print(f"Fetched {len(questions_data)} questions.\n")
         return questions_data, None
     except requests.exceptions.RequestException as e:
         err_msg = f"Error fetching questions: {e}"
@@ -75,7 +76,7 @@ def fetch_questions():
 
 
 def get_random_question():
-    print(f"Fetching a random question from: {random_question_url}")
+    print(f"\nFetching a random question from: {random_question_url}")
     try:
         response = requests.get(random_question_url, timeout=15)
         response.raise_for_status()
@@ -84,18 +85,18 @@ def get_random_question():
             err_msg = "Fetched random question is empty or in invalid format."
             print(err_msg)
             return None, err_msg
-        print(f"Fetched random question with task_id: {question_data.get('task_id', 'N/A')}")
+        print(f"Fetched random question with task_id: {question_data.get('task_id', 'N/A')}\n")
         return question_data, None
     except requests.exceptions.RequestException as e:
-        err_msg = f"Error fetching random question: {e}"
+        err_msg = f"Error fetching random question: {e}\n"
         print(err_msg)
         return None, err_msg
     except requests.exceptions.JSONDecodeError as e:
-        err_msg = f"Error decoding JSON response from random question endpoint: {e} | Response text: {response.text[:500]}"
+        err_msg = f"Error decoding JSON response from random question endpoint: {e} | Response text: {response.text[:500]}\n"
         print(err_msg)
         return None, err_msg
     except Exception as e:
-        err_msg = f"Unexpected error fetching random question: {e}"
+        err_msg = f"Unexpected error fetching random question: {e}\n"
         print(err_msg)
         return None, err_msg
 
@@ -132,7 +133,7 @@ def evaluate_random_question(profile: gr.OAuthProfile | None):
     answers_payload, results_log = run_agent(agent, [random_question])
 
     if not answers_payload or len(answers_payload) == 0:
-        print("Agent did not produce any answer for the random question.")
+        print("Agent did not produce any answer for the random question.\n")
         return "Agent did not produce any answer for the random question.", pd.DataFrame(results_log)
 
     # No submission to server for a single random question.
@@ -185,16 +186,18 @@ def get_task_file(task_id: str, save_dir="downloads"):
         print(f"Error downloading file for task {task_id}: {e}")
         return None
 
+
 def run_agent(agent, questions_data):
     results_log = []
     answers_payload = []
-    print(f"Running agent on {len(questions_data)} questions...")
+    print(f"Running agent on {len(questions_data)} questions...\n")
 
-    for item in questions_data:
+    for i, item in enumerate(questions_data):
         task_id = item.get("task_id")
         question_text = item.get("question")
         file_name = item.get("file_name")
 
+        print("\n" + "-" * 30 + f"|START {i}|" + "-" * 30)
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
@@ -222,8 +225,11 @@ def run_agent(agent, questions_data):
             item["submitted_answer"] = err_msg
 
         results_log.append(item)
+        print("-" * 30 + f"|END {i}|" + "-" * 30 + "\n")
 
+    print(f"Finished running agent on {len(questions_data)} questions...!\n")
     return answers_payload, results_log
+
 
 def submit_answers(username, agent_code, answers_payload):
     submission_data = {
@@ -268,6 +274,7 @@ def submit_answers(username, agent_code, answers_payload):
         print(status_message)
         return status_message
 
+
 # Main method
 def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
@@ -277,7 +284,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     # Find out the logged in person
     if profile:
         username = f"{profile.username}"
-        print(f"User logged in: {username}")
+        print(f"User logged in: {username}\n")
     else:
         print("User not logged in.")
         return "Please Login to Hugging Face with the button.", None
