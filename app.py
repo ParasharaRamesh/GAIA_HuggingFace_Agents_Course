@@ -5,6 +5,7 @@ import inspect
 import pandas as pd
 import re
 import mimetypes
+import json
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -13,6 +14,9 @@ questions_url = f"{DEFAULT_API_URL}/questions"
 submit_url = f"{DEFAULT_API_URL}/submit"
 random_question_url = f"{DEFAULT_API_URL}/random-question"
 get_file_url = f"{DEFAULT_API_URL}/files/"  # append task_id to this
+
+with open('expected_answers.json', 'r', encoding='utf-8') as f:
+    expected_answers = {item["task_id"]: item["Final answer"] for item in json.load(f)}
 
 
 # --- Basic Agent Definition ---
@@ -32,7 +36,6 @@ class BasicAgent:
 
 
 # Helper methods
-
 
 def get_agent_code_link():
     # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
@@ -201,6 +204,9 @@ def run_agent(agent, questions_data):
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
+
+        expected_answer = expected_answers.get(task_id, "")
+        item["expected_answer"] = expected_answer
 
         # ✅ Check if there is an associated file and attempt to fetch it
         fetched_path = None
