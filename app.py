@@ -10,18 +10,21 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 questions_url = f"{DEFAULT_API_URL}/questions"
 submit_url = f"{DEFAULT_API_URL}/submit"
 random_question_url = f"{DEFAULT_API_URL}/random-question"
-get_file_url = f"{DEFAULT_API_URL}/files/" # append task_id to this
+get_file_url = f"{DEFAULT_API_URL}/files/"  # append task_id to this
+
 
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
+
     def __call__(self, question: str) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}...")
         fixed_answer = "This is a default answer."
         print(f"Agent returning fixed answer: {fixed_answer}")
         return fixed_answer
+
 
 # Helper methods
 def fetch_questions():
@@ -49,6 +52,7 @@ def fetch_questions():
         err_msg = f"Unexpected error fetching questions: {e}"
         print(err_msg)
         return None, err_msg
+
 
 def submit_answers(username, agent_code, answers_payload):
     submission_data = {
@@ -93,9 +97,10 @@ def submit_answers(username, agent_code, answers_payload):
         print(status_message)
         return status_message
 
-#TODO. add function for fetching a random question + gradio button
 
-#TODO. add function for fetching a file associated with a task_id if it exists. But before that check if all questions have such metadata or are there more in the different levels.
+# TODO. add function for fetching a random question + gradio button
+
+# TODO. add function for fetching a file associated with a task_id if it exists. But before that check if all questions have such metadata or are there more in the different levels.
 
 
 def run_agent(agent, questions_data):
@@ -122,25 +127,25 @@ def run_agent(agent, questions_data):
 
     return answers_payload, results_log
 
+
 # Main method
-def run_and_submit_all( profile: gr.OAuthProfile | None):
+def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
     and displays the results.
     """
     # Find out the logged in person
     if profile:
-        username= f"{profile.username}"
+        username = f"{profile.username}"
         print(f"User logged in: {username}")
     else:
         print("User not logged in.")
         return "Please Login to Hugging Face with the button.", None
 
-    # --- Determine HF Space Runtime URL and Repo URL ---
-    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
-    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
-    agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
-    print(f"Agent code is present @ {agent_code}")
+    # 0.  Determine HF Space Runtime URL and Repo URL
+    agent_code = get_agent_code_link()
+    if not agent_code:
+        return "Error getting the agent code link from the SPACE_ID environment variable", None
 
     # 1. Instantiate Agent ( modify this part to create your agent)
     try:
@@ -161,12 +166,24 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
         print("Agent did not produce any answers to submit.")
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
-
     # 4. Submit answers
     final_status = submit_answers(username, agent_code, answers_payload)
     results_df = pd.DataFrame(results_log)
     return final_status, results_df
 
+
+def get_agent_code_link():
+    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
+    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
+    try:
+        if space_id:
+            agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
+            print(f"Agent code is present @ {agent_code}")
+            return agent_code
+        return None
+    except Exception as e:
+        print(f"Error getting agent code link: {e}")
+        return None
 
 
 # --- Build Gradio Interface using Blocks ---
@@ -201,10 +218,10 @@ with gr.Blocks() as demo:
     )
 
 if __name__ == "__main__":
-    print("\n" + "-"*30 + " App Starting " + "-"*30)
+    print("\n" + "-" * 30 + " App Starting " + "-" * 30)
     # Check for SPACE_HOST and SPACE_ID at startup for information
     space_host_startup = os.getenv("SPACE_HOST")
-    space_id_startup = os.getenv("SPACE_ID") # Get SPACE_ID at startup
+    space_id_startup = os.getenv("SPACE_ID")  # Get SPACE_ID at startup
 
     if space_host_startup:
         print(f"✅ SPACE_HOST found: {space_host_startup}")
@@ -212,14 +229,14 @@ if __name__ == "__main__":
     else:
         print("ℹ️  SPACE_HOST environment variable not found (running locally?).")
 
-    if space_id_startup: # Print repo URLs if SPACE_ID is found
+    if space_id_startup:  # Print repo URLs if SPACE_ID is found
         print(f"✅ SPACE_ID found: {space_id_startup}")
         print(f"   Repo URL: https://huggingface.co/spaces/{space_id_startup}")
         print(f"   Repo Tree URL: https://huggingface.co/spaces/{space_id_startup}/tree/main")
     else:
         print("ℹ️  SPACE_ID environment variable not found (running locally?). Repo URL cannot be determined.")
 
-    print("-"*(60 + len(" App Starting ")) + "\n")
+    print("-" * (60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for Basic Agent Evaluation...")
     demo.launch(debug=True, share=False)
