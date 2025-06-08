@@ -7,6 +7,10 @@ import pandas as pd
 # (Keep Constants as is)
 # --- Constants ---
 DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
+questions_url = f"{DEFAULT_API_URL}/questions"
+submit_url = f"{DEFAULT_API_URL}/submit"
+random_question_url = f"{DEFAULT_API_URL}/random-question"
+get_file_url = f"{DEFAULT_API_URL}/files/" # append task_id to this
 
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
@@ -19,85 +23,40 @@ class BasicAgent:
         print(f"Agent returning fixed answer: {fixed_answer}")
         return fixed_answer
 
-def run_and_submit_all( profile: gr.OAuthProfile | None):
-    """
-    Fetches all questions, runs the BasicAgent on them, submits all answers,
-    and displays the results.
-    """
-    # --- Determine HF Space Runtime URL and Repo URL ---
-    space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
-
-    if profile:
-        username= f"{profile.username}"
-        print(f"User logged in: {username}")
-    else:
-        print("User not logged in.")
-        return "Please Login to Hugging Face with the button.", None
-
-    api_url = DEFAULT_API_URL
-    questions_url = f"{api_url}/questions"
-    submit_url = f"{api_url}/submit"
-
-    # 1. Instantiate Agent ( modify this part to create your agent)
-    try:
-        agent = BasicAgent()
-    except Exception as e:
-        print(f"Error instantiating agent: {e}")
-        return f"Error initializing agent: {e}", None
-    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
-    agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
-    print(agent_code)
-
-    # 2. Fetch Questions
+# Helper methods
+def fetch_questions():
     print(f"Fetching questions from: {questions_url}")
     try:
         response = requests.get(questions_url, timeout=15)
         response.raise_for_status()
         questions_data = response.json()
         if not questions_data:
-             print("Fetched questions list is empty.")
-             return "Fetched questions list is empty or invalid format.", None
+            err_msg = "Fetched questions list is empty or invalid format."
+            print(err_msg)
+            return None, err_msg
+
         print(f"Fetched {len(questions_data)} questions.")
+        return questions_data, None
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching questions: {e}")
-        return f"Error fetching questions: {e}", None
+        err_msg = f"Error fetching questions: {e}"
+        print(err_msg)
+        return None, err_msg
     except requests.exceptions.JSONDecodeError as e:
-         print(f"Error decoding JSON response from questions endpoint: {e}")
-         print(f"Response text: {response.text[:500]}")
-         return f"Error decoding server response for questions: {e}", None
+        err_msg = f"Error decoding JSON response from questions endpoint: {e} | Response text: {response.text[:500]}"
+        print(err_msg)
+        return None, err_msg
     except Exception as e:
-        print(f"An unexpected error occurred fetching questions: {e}")
-        return f"An unexpected error occurred fetching questions: {e}", None
+        err_msg = f"Unexpected error fetching questions: {e}"
+        print(err_msg)
+        return None, err_msg
 
-    # 3. Run your Agent
-    results_log = []
-    answers_payload = []
-    print(f"Running agent on {len(questions_data)} questions...")
-    for item in questions_data:
-        task_id = item.get("task_id")
-        question_text = item.get("question")
-        if not task_id or question_text is None:
-            print(f"Skipping item with missing task_id or question: {item}")
-            continue
-        try:
-            submitted_answer = agent(question_text)
-            answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
-        except Exception as e:
-             print(f"Error running agent on task {task_id}: {e}")
-             results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
-
-    if not answers_payload:
-        print("Agent did not produce any answers to submit.")
-        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
-
-    # 4. Prepare Submission 
-    submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
-    status_update = f"Agent finished. Submitting {len(answers_payload)} answers for user '{username}'..."
-    print(status_update)
-
-    # 5. Submit
-    print(f"Submitting {len(answers_payload)} answers to: {submit_url}")
+def submit_answers(username, agent_code, answers_payload):
+    submission_data = {
+        "username": username.strip(),
+        "agent_code": agent_code,
+        "answers": answers_payload
+    }
+    print(f"Agent finished. Submitting {len(answers_payload)} answers for user '{username}' to: {submit_url}")
     try:
         response = requests.post(submit_url, json=submission_data, timeout=60)
         response.raise_for_status()
@@ -109,9 +68,8 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
             f"({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)\n"
             f"Message: {result_data.get('message', 'No message received.')}"
         )
-        print("Submission successful.")
-        results_df = pd.DataFrame(results_log)
-        return final_status, results_df
+        print("Submission successful :) !!")
+        return final_status
     except requests.exceptions.HTTPError as e:
         error_detail = f"Server responded with status {e.response.status_code}."
         try:
@@ -121,23 +79,94 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
             error_detail += f" Response: {e.response.text[:500]}"
         status_message = f"Submission Failed: {error_detail}"
         print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        return status_message
     except requests.exceptions.Timeout:
         status_message = "Submission Failed: The request timed out."
         print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        return status_message
     except requests.exceptions.RequestException as e:
         status_message = f"Submission Failed: Network error - {e}"
         print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        return status_message
     except Exception as e:
         status_message = f"An unexpected error occurred during submission: {e}"
         print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        return status_message
+
+#TODO. add function for fetching a random question + gradio button
+
+#TODO. add function for fetching a file associated with a task_id if it exists. But before that check if all questions have such metadata or are there more in the different levels.
+
+
+def run_agent(agent, questions_data):
+    results_log = []
+    answers_payload = []
+    print(f"Running agent on {len(questions_data)} questions...")
+
+    for item in questions_data:
+        task_id = item.get("task_id")
+        question_text = item.get("question")
+        if not task_id or question_text is None:
+            print(f"Skipping item with missing task_id or question: {item}")
+            continue
+
+        print(f"Running agent on question: {question_text}")
+
+        try:
+            submitted_answer = agent(question_text)
+            answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
+            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
+        except Exception as e:
+            print(f"Error running agent on task {task_id}: {e}")
+            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
+
+    return answers_payload, results_log
+
+# Main method
+def run_and_submit_all( profile: gr.OAuthProfile | None):
+    """
+    Fetches all questions, runs the BasicAgent on them, submits all answers,
+    and displays the results.
+    """
+    # Find out the logged in person
+    if profile:
+        username= f"{profile.username}"
+        print(f"User logged in: {username}")
+    else:
+        print("User not logged in.")
+        return "Please Login to Hugging Face with the button.", None
+
+    # --- Determine HF Space Runtime URL and Repo URL ---
+    # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
+    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
+    agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
+    print(f"Agent code is present @ {agent_code}")
+
+    # 1. Instantiate Agent ( modify this part to create your agent)
+    try:
+        agent = BasicAgent()
+    except Exception as e:
+        error_msg = f"Error instantiating agent: {e}"
+        return error_msg, None
+
+    # 2. Fetch Questions
+    questions_data, error_msg = fetch_questions()
+    if error_msg:
+        return error_msg, None
+
+    # 3. Run your Agent
+    answers_payload, results_log = run_agent(agent, questions_data)
+
+    if not answers_payload or len(answers_payload) == 0:
+        print("Agent did not produce any answers to submit.")
+        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
+
+
+    # 4. Submit answers
+    final_status = submit_answers(username, agent_code, answers_payload)
+    results_df = pd.DataFrame(results_log)
+    return final_status, results_df
+
 
 
 # --- Build Gradio Interface using Blocks ---
