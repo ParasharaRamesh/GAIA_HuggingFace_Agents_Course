@@ -97,6 +97,7 @@ def submit_answers(username, agent_code, answers_payload):
         print(status_message)
         return status_message
 
+
 def get_random_question():
     print(f"Fetching a random question from: {random_question_url}")
     try:
@@ -121,6 +122,7 @@ def get_random_question():
         err_msg = f"Unexpected error fetching random question: {e}"
         print(err_msg)
         return None, err_msg
+
 
 def evaluate_random_question(profile: gr.OAuthProfile | None):
     """
@@ -178,15 +180,18 @@ def run_agent(agent, questions_data):
             print(f"Skipping item with missing task_id or question: {item}")
             continue
 
-        print(f"Running agent on question: {question_text}")
+        print(f"Running agent on question: {item}")
 
         try:
             submitted_answer = agent(question_text)
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
+            item["submitted_answer"] = submitted_answer
         except Exception as e:
-            print(f"Error running agent on task {task_id}: {e}")
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
+            err_msg = f"AGENT ERROR on task {task_id}: {e}"
+            print(err_msg)
+            item["submitted_answer"] = err_msg
+
+        results_log.append(item)
 
     return answers_payload, results_log
 
