@@ -269,21 +269,21 @@ with gr.Blocks() as demo:
 
     gr.LoginButton()
 
+    # evaluation buttons
     run_button = gr.Button("Run Evaluation & Submit All Answers")
+    run_random_button = gr.Button("Evaluate on Random Question")
 
+    # button results
     status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
     # Removed max_rows=10 from DataFrame constructor
     results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
 
+    # button callbacks
     run_button.click(
         fn=run_and_submit_all,
         outputs=[status_output, results_table]
     )
 
-    # Button to run the agent on a single random question
-    run_random_button = gr.Button("Evaluate on Random Question")
-
-    # Bind this button to the evaluate_random_question method
     run_random_button.click(
         fn=evaluate_random_question,
         outputs=[status_output, results_table]
