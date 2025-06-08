@@ -29,4 +29,4 @@ Important Links:
 * https://huggingface.co/blog/open-deep-research
 * https://github.com/huggingface/smolagents/blob/main/examples/open_deep_research/scripts/text_inspector_tool.py
 * https://python.langchain.com/docs/integrations/tools/
-* Refer to that articule from langgraph which talks about how to build multi agent systems (swarm)
+* Refer to that article from langgraph which talks about how to build multi agent systems (swarm)
