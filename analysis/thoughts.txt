@@ -1,0 +1,32 @@
+List of tools I need:
+
+    File reading tools:
+
+    1. Parse Excel as a DataFrame in python
+    2. Parse MP3 -> TTS
+    3. Parse Youtube videos -> both audio and video parsing -> or at the very least just audio parsing to TTS from the youtube link
+    4. Parse Images (use multimodal LLM)
+
+    Search Tools:
+
+    1. web browser for search
+    2. web scraper
+    3. wikipedia scraper (perhaps the code agent can do it)
+    4. Arxiv tools (academic journal scraper)
+
+    Code Agent:
+
+    1. python code agent ( should cover all math )
+
+    RAG/Local vector db:
+
+    - Needed for indexing the web page results/wiki page results maybe?
+
+Important Links:
+
+* https://huggingface.co/datasets/gaia-benchmark/GAIA
+* https://huggingface.co/learn/agents-course/unit4/introduction
+* https://huggingface.co/blog/open-deep-research
+* https://github.com/huggingface/smolagents/blob/main/examples/open_deep_research/scripts/text_inspector_tool.py
+* https://python.langchain.com/docs/integrations/tools/
+* Refer to that articule from langgraph which talks about how to build multi agent systems (swarm)
