@@ -13,3 +13,4 @@ pymupdf
 wikipedia
 python-dotenv
 fitz
+duckduckgo-search

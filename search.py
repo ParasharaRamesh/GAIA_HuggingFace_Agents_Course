@@ -17,6 +17,35 @@ from typing import Union, List
 
 from langchain_community.document_loaders import WikipediaLoader, WebBaseLoader, ArxivLoader
 from langchain_core.tools import tool
+from duckduckgo_search import DDGS
+
+
+@tool
+def web_search(query: str, max_results: int = 5) -> str:
+    """
+    Search the web using DuckDuckGo and return a formatted list of results.
+
+    Args:
+        query: The search query.
+        max_results: Number of results to retrieve (default 5).
+
+    Returns:
+        A formatted string of search results.
+    """
+    results = []
+    with DDGS() as ddgs:
+        for r in ddgs.text(query, max_results=max_results):
+            title = r.get("title", "")
+            href = r.get("href", "")
+            body = r.get("body", "")
+            results.append({
+                "title": title,
+                "url": href,
+                "body": body
+            })
+
+    return {"web_results": results}
+
 
 @tool
 def arxiv_search(query: str, max_results: int = 2) -> dict:
@@ -43,6 +72,7 @@ def arxiv_search(query: str, max_results: int = 2) -> dict:
         })
 
     return {"arxiv_results": results}
+
 
 @tool
 def wiki_search(query: str, load_max_docs: int = 3) -> str:
@@ -103,4 +133,4 @@ def web_scraper(urls: Union[str, List[str]]) -> dict:
 
 
 if __name__ == '__main__':
-    print(arxiv_search("kmeans"))
+    print(web_search("sanju samson"))
