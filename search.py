@@ -9,8 +9,7 @@ Plan is to implement the following tools:
 4. wikipedia search/scraper tool
 
 TODO.0 return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
-TODO.1 handle chunking and storing in vector DB
-TODO.2 handle exceptions , how does langgraph handle it?
+TODO.1 perhaps a requests tool, this way it would have the tools download anything and if need be save it.  
 
 '''
 from typing import Union, List

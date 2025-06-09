@@ -14,3 +14,7 @@ wikipedia
 python-dotenv
 fitz
 duckduckgo-search
+openai-whisper
+setuptools-rust
+torch
+numba
