@@ -8,15 +8,41 @@ Plan is to implement the following tools:
 3. arxiv/academic search tool
 4. wikipedia search/scraper tool
 
+TODO.0 return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
 TODO.1 handle chunking and storing in vector DB
 TODO.2 handle exceptions , how does langgraph handle it?
 
 '''
 from typing import Union, List
 
-from langchain_community.document_loaders import WikipediaLoader, WebBaseLoader
+from langchain_community.document_loaders import WikipediaLoader, WebBaseLoader, ArxivLoader
 from langchain_core.tools import tool
 
+@tool
+def arxiv_search(query: str, max_results: int = 2) -> dict:
+    """
+    Search Arxiv for a query and return up to max_results documents.(default is 2)
+
+    Args:
+        query: The search query.
+        max_results: Maximum number of search results to return.
+
+    Returns:
+        A dictionary containing the search results, each with source URL, summary, and page content.
+    """
+    loader = ArxivLoader(query=query, load_max_docs=max_results)
+    docs = loader.load()
+
+    results = []
+    for doc in docs:
+        results.append({
+            "source": doc.metadata.get("source", ""),
+            "summary": doc.metadata.get("summary", ""),
+            "page": doc.metadata.get("page", ""),
+            "content": doc.page_content
+        })
+
+    return {"arxiv_results": results}
 
 @tool
 def wiki_search(query: str, load_max_docs: int = 3) -> str:
@@ -30,15 +56,18 @@ def wiki_search(query: str, load_max_docs: int = 3) -> str:
     Returns:
         A formatted string containing the source URL, summary and page content for the related/relevant articles based on the 'load_max_docs' parameter
     """
-    search_docs = WikipediaLoader(query=query, load_max_docs=load_max_docs).load()
+    docs = WikipediaLoader(query=query, load_max_docs=load_max_docs).load()
 
-    formatted_search_docs = "\n\n---\n\n".join(
-        [
-            f'<Document source="{doc.metadata["source"]}" summary="{doc.metadata.get("summary", "")}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
-            for doc in search_docs
-        ]
-    )
-    return {"wiki_results": formatted_search_docs}
+    results = []
+    for doc in docs:
+        results.append({
+            "source": doc.metadata.get("source", ""),
+            "summary": doc.metadata.get("summary", ""),
+            "page": doc.metadata.get("page", ""),
+            "content": doc.page_content
+        })
+
+    return {"wiki_results": results}
 
 
 @tool
@@ -74,6 +103,4 @@ def web_scraper(urls: Union[str, List[str]]) -> dict:
 
 
 if __name__ == '__main__':
-    pass
-    # url = "https://blog.google/technology/google-deepmind/gemini-2-5-native-audio/"
-    # results = web_scraper(url)
+    print(arxiv_search("kmeans"))

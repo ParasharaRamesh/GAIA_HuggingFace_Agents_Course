@@ -12,3 +12,4 @@ arxiv
 pymupdf
 wikipedia
 python-dotenv
+fitz
