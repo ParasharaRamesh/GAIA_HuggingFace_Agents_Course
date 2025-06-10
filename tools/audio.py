@@ -5,7 +5,7 @@ from urllib.parse import urlparse, parse_qs
 from langchain_core.tools import tool
 from yt_dlp import YoutubeDL
 
-# Load the base model
+# Load the base model (globally)
 model = whisper.load_model("tiny")
 
 @tool

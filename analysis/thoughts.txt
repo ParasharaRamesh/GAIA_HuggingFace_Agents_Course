@@ -5,7 +5,7 @@ List of tools I need:
     1. Parse Excel as a DataFrame in python (code agent can do this)
     2. Parse MP3 -> TTS (X)
     3. Parse Youtube url -> audio -> transcript (X)
-    4. Parse Youtube url -> video -> analysis
+    4. Parse Youtube url -> video (X) -> analysis
     5. Parse Images (use multimodal LLM)
 
     Search Tools: (X)

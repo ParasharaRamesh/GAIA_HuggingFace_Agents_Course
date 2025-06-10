@@ -6,6 +6,7 @@ import pandas as pd
 import re
 import mimetypes
 import json
+from tools.audio import model # this triggers the model to be loaded
 
 # (Keep Constants as is)
 # --- Constants ---
