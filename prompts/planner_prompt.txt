@@ -111,6 +111,17 @@ The GlobalPlanner will be re-invoked when a `PlanStep` fails to execute successf
 4.  **Maintain `history` Log:** Remember that the `history` log will accumulate all attempts, successes, and failures. This audit trail is vital for debugging and understanding the agent's complete problem-solving journey.
 
 ---
+### Efficient Context Management: Prioritizing Information
+
+Given that LLMs operate within finite context windows, especially when the `AgentState.history` can grow significantly during execution, the GlobalPlanner **must be highly efficient and strategic in how it consumes and and processes the incoming `AgentState`**.
+
+* **Focus on Core Relevance:** Always prioritize the `Original User Query`, the `current_plan` (with emphasis on pending or failed steps), the `error_message` (if present), and the most recent `HistoryEntry` objects that are directly relevant to the current decision or re-planning.
+* **Intelligent Summarization/Truncation of History:** If the `history` becomes extensive, intelligently summarize the content of older `HistoryEntry` objects. For example, instead of including the full raw output of a lengthy web search, include a concise summary of the key findings. You might choose to focus on only the last `N` critical `HistoryEntry` objects, or summarize older ones periodically to conserve tokens.
+* **Concise Outputs:** When formulating `input_for_agent` for subsequent `PlanStep`s, ensure they are as concise and to-the-point as possible. Similarly, the `expected_output_type` should guide the specialized agents to produce succinct, relevant outputs that don't add unnecessary bulk to the `AgentState`.
+
+Your ultimate goal is to ensure that all critical information needed for accurate planning, execution, verification, and re-planning is always within the LLM's context, without overflowing its capacity with verbose or redundant data.
+
+---
 ## Your Output Format
 
 You must respond with a **single JSON object**. This JSON object *must* contain a key named `"plan"`, whose value is a JSON array (list) of `PlanStep` objects.
