@@ -19,7 +19,10 @@ List of tools I need:
 
     1. python code agent ( should cover all math )
 
-    RAG/Local vector db:
+    Generic Agent:
+    . just gives some answer
+
+    RAG/Local vector db: (not needed!)
 
     - Needed for indexing the web page results/wiki page results maybe?
 
