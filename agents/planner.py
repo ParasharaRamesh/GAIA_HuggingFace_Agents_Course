@@ -8,7 +8,7 @@ from typing import Any, List  # Add any other types you need for other parts of 
 from agents.state import AgentState, PlanStep, HistoryEntry
 
 # Assuming create_type_string is now located in utils/state.py as per your latest info
-from utils.state import create_type_string # <-- NEW IMPORT
+from utils.state import create_type_string  # <-- NEW IMPORT
 
 '''TODO.x:
 1. How is the model switch to a reasoning model happening? doesnt seem like it is happening. Perhaps for first version not really needed!
@@ -17,6 +17,7 @@ from utils.state import create_type_string # <-- NEW IMPORT
 
 
 '''
+
 
 class GlobalPlanner:
     """
@@ -41,12 +42,13 @@ class GlobalPlanner:
         agent_state_schema = create_type_string(AgentState)
         plan_step_schema = create_type_string(PlanStep)
         history_entry_schema = create_type_string(HistoryEntry)
-        #
-        # self.planner_prompt_template = raw_prompt_template.format(
-        #     agent_state_schema_placeholder=agent_state_schema,
-        #     plan_step_schema_placeholder=plan_step_schema,
-        #     history_entry_schema_placeholder=history_entry_schema
-        # )
+
+        self.planner_prompt_template = (self.planner_prompt_template
+                                        .replace("agent_state_schema_placeholder", agent_state_schema)
+                                        .replace("plan_step_schema_placeholder", plan_step_schema)
+                                        .replace("history_entry_schema_placeholder", history_entry_schema)
+                                        )
+        print("Loaded Planner agent")
 
     def __call__(self, state: AgentState) -> AgentState:
         """
@@ -216,6 +218,7 @@ class GlobalPlanner:
             ))
 
         return plan
+
 
 if __name__ == '__main__':
     GlobalPlanner("blah blah")
