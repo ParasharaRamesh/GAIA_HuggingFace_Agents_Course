@@ -1,6 +1,7 @@
 import operator
-from typing import TypedDict, List, Dict, Any, Union, Literal, Optional
+from typing import TypedDict, List, Dict, Any, Union, Literal, Optional, Annotated
 from datetime import datetime
+import inspect
 
 # --- Enums/Literals for State Attributes ---
 
@@ -126,17 +127,12 @@ class AgentState(TypedDict):
     """
     query: str
     file_path: Optional[str]
-    current_plan: List[PlanStep]
+    current_plan: Annotated[List["PlanStep"], operator.add]
     current_step_index: int
     current_agent_output: Any
     verification_status: Optional[VerificationStatus]
     retry_count: int
-    history: List[HistoryEntry]
+    history: Annotated[List["HistoryEntry"], operator.add]
     final_answer: Optional[str]
     confidence: ConfidenceLevel
     error_message: Optional[str]
-
-    __annotations__ = {
-        "current_plan": (List[PlanStep], operator.add),
-        "history": (List[HistoryEntry], operator.add),
-    }
