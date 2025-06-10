@@ -2,12 +2,12 @@ List of tools I need:
 
     File reading tools:
 
-    1. Parse Excel as a DataFrame in python
-    2. Parse MP3 -> TTS
+    1. Parse Excel as a DataFrame in python (code agent can do this)
+    2. Parse MP3 -> TTS (X)
     3. Parse Youtube videos -> both audio and video parsing -> or at the very least just audio parsing to TTS from the youtube link
     4. Parse Images (use multimodal LLM)
 
-    Search Tools:
+    Search Tools: (X)
 
     1. web browser for search
     2. web scraper

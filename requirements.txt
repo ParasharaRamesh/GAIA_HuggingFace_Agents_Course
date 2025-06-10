@@ -18,3 +18,4 @@ openai-whisper
 setuptools-rust
 torch
 numba
+yt_dlp
