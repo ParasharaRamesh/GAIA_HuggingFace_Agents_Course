@@ -4,8 +4,9 @@ List of tools I need:
 
     1. Parse Excel as a DataFrame in python (code agent can do this)
     2. Parse MP3 -> TTS (X)
-    3. Parse Youtube videos -> both audio and video parsing -> or at the very least just audio parsing to TTS from the youtube link
-    4. Parse Images (use multimodal LLM)
+    3. Parse Youtube url -> audio -> transcript (X)
+    4. Parse Youtube url -> video -> analysis
+    5. Parse Images (use multimodal LLM)
 
     Search Tools: (X)
 
