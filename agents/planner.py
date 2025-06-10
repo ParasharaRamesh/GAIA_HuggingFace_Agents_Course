@@ -1,11 +1,14 @@
 # Defines the Planner agent
-# agents/planner.py
-import operator
-from typing import List, Any, Literal
-from datetime import datetime
+import os
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+from typing import Any, List  # Add any other types you need for other parts of planner.py
 
-# Import the core state definitions and helper from agents.state
-from agents.state import AgentState, PlanStep, PlanStepStatus, HistoryEntry
+# Assuming AgentState, PlanStep, HistoryEntry are in agents.state as per your uploaded file
+from agents.state import AgentState, PlanStep, HistoryEntry
+
+# Assuming create_type_string is now located in utils/state.py as per your latest info
+from utils.state import create_type_string # <-- NEW IMPORT
 
 '''TODO.x:
 1. How is the model switch to a reasoning model happening? doesnt seem like it is happening. Perhaps for first version not really needed!
@@ -22,28 +25,28 @@ class GlobalPlanner:
     It orchestrates the sequence of operations by modifying the `current_plan` in the AgentState.
     """
 
-    def __init__(self):
-        # TODO.0: Initialize LLM for planning here. For now, it's a dummy.
-        self.planner_llm = None  # Placeholder for actual LLM
-        # TODO.1: Define a standard prompt for the GlobalPlanner.
-        self.planner_prompt = """
-        You are an expert autonomous planning agent. Your task is to break down complex user queries
-        into a sequence of actionable steps (PlanSteps) for other specialized agents to execute.
-        
-        Allowed agents are: web_search_agent, wiki_agent, arxiv_agent, audio_agent, code_agent, visual_agent, summarizer_agent, final_answer_agent.
+    def __init__(self, llm, planner_prompt_filename: str = "planner_prompt.txt"):
+        self.llm = llm
 
-        Consider the following rules:
-        1. Each PlanStep must specify an 'agent_to_call' from the allowed list.
-        2. Provide clear 'input_for_agent' arguments for the chosen agent.
-        3. Define 'expected_output_type' for verification.
-        4. Provide 'details' and 'substeps' for clarity.
-        5. The 'status' of each step should initially be 'PENDING'.
-        6. If re-planning due to a 'failure' or 'error_message', analyze the error and adjust the plan.
-           Consider retrying the current step if appropriate or generating a new approach.
-        7. The final step of any successful plan should lead to a 'final_answer_agent'.
+        # prompt path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        prompts_dir = os.path.join(current_dir, '..', 'prompts')
+        planner_prompt_path = os.path.join(prompts_dir, planner_prompt_filename)
 
-        
-        """
+        # prompt injection
+        self.planner_prompt_template = None
+        with open(planner_prompt_path, 'r', encoding='utf-8') as f:
+            self.planner_prompt_template = f.read()
+
+        agent_state_schema = create_type_string(AgentState)
+        plan_step_schema = create_type_string(PlanStep)
+        history_entry_schema = create_type_string(HistoryEntry)
+        #
+        # self.planner_prompt_template = raw_prompt_template.format(
+        #     agent_state_schema_placeholder=agent_state_schema,
+        #     plan_step_schema_placeholder=plan_step_schema,
+        #     history_entry_schema_placeholder=history_entry_schema
+        # )
 
     def __call__(self, state: AgentState) -> AgentState:
         """
@@ -82,21 +85,21 @@ class GlobalPlanner:
             status = "SKIPPED"  # This node skipped detailed re-planning
 
         # Append to history
-        updated_state['history'].append(create_history_entry(
-            node="global_planner_node",
-            action=action,
-            input_to_node={"query": state['query'], "current_step_index": state['current_step_index'],
-                           "verification_status": state['verification_status'], "error_message": state['error_message'],
-                           "retry_count": state['retry_count']},
-            output_from_node={"plan_length": len(updated_state['current_plan']) if updated_state['current_plan'] else 0,
-                              "new_step_index": updated_state['current_step_index'],
-                              "new_retry_count": updated_state['retry_count']},
-            status=status,
-            model_used="dummy-planner-llm",  # Placeholder
-            # Ensure a copy of the plan is stored in history, not a reference
-            plan_snapshot=[step.copy() for step in updated_state['current_plan']] if updated_state[
-                'current_plan'] else []
-        ))
+        # updated_state['history'].append(create_history_entry(
+        #     node="global_planner_node",
+        #     action=action,
+        #     input_to_node={"query": state['query'], "current_step_index": state['current_step_index'],
+        #                    "verification_status": state['verification_status'], "error_message": state['error_message'],
+        #                    "retry_count": state['retry_count']},
+        #     output_from_node={"plan_length": len(updated_state['current_plan']) if updated_state['current_plan'] else 0,
+        #                       "new_step_index": updated_state['current_step_index'],
+        #                       "new_retry_count": updated_state['retry_count']},
+        #     status=status,
+        #     model_used="dummy-planner-llm",  # Placeholder
+        #     # Ensure a copy of the plan is stored in history, not a reference
+        #     plan_snapshot=[step.copy() for step in updated_state['current_plan']] if updated_state[
+        #         'current_plan'] else []
+        # ))
 
         return updated_state
 
@@ -213,3 +216,6 @@ class GlobalPlanner:
             ))
 
         return plan
+
+if __name__ == '__main__':
+    GlobalPlanner("blah blah")

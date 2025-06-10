@@ -31,22 +31,30 @@ HistoryEntryStatus = Literal["SUCCESS", "FAILED", "SKIPPED", "IN_PROGRESS"]
 
 class PlanStep(TypedDict):
     """
-    Represents a single, actionable step within the agent's overall plan.
-    Each step guides the execution flow by specifying which agent to call and what its objective is.
+    A single, actionable step in the agent's multi-step plan.
+    The GlobalPlanner defines these steps to guide the execution of specialized agents
+    and achieve the overall user query goal.
 
     Attributes:
-        agent_to_call (str): The identifier (string name) of the specific agent node responsible for executing this step.
-            Crucial for LangGraph to route the state to the correct agent function for execution.
-        input_for_agent (Any): The specific input data or instructions tailored for the `agent_to_call` for this step.
-            Crucial for providing context and necessary data for the executing agent to perform its task.
-        expected_output_type (str): A description of the expected type or format of the output from the `agent_to_call` for this step.
-            Crucial for guiding the executing agent towards a specific result and for the VerifierAgent to know what to check.
-        details (str): A high-level, human-readable description of the objective or goal for this plan step.
-            Crucial for the GlobalPlanner's reasoning, for logging, and for the VerifierAgent to understand the step's intent.
-        substeps (List[str]): A list of high-level checkpoints or sub-goals that the executing agent should aim to achieve within this single plan step.
-            Crucial for guiding the internal reasoning of the `agent_to_call` and for the VerifierAgent to perform more granular checks.
-        status (PlanStepStatus): The current execution status of this specific plan step (e.g., PENDING, IN_PROGRESS, SUCCESS, FAILED).
-            Crucial for tracking progress, determining where to resume execution, and for the GlobalPlanner to perform targeted re-planning.
+        agent_to_call (str): The unique string identifier of the specialized agent node that will execute this step.
+            The planner must select from a predefined list of available agent nodes.
+            This field dictates which agent (e.g., 'researcher_agent_node', 'audio_agent_node',
+            'code_agent_node', 'final_answer_agent_node') the workflow will dispatch to for this step.
+        input_for_agent (Any): A dictionary (`dict`) containing all necessary arguments and data for the `agent_to_call`
+            to perform its specific task. The planner must correctly format this to match the
+            expected input signature of the target agent's tools.
+        expected_output_type (str): A descriptive string indicating the anticipated format or nature of the output
+            from `agent_to_call`. The planner should specify this clearly to aid the
+            VerifierAgent in assessing success. Examples: 'web_results_json', 'transcript_text',
+            'code_execution_output', 'final_answer_text'.
+        details (str): A concise, human-readable summary of this step's objective.
+            The planner should make this clear for self-reflection and for the VerifierAgent
+            to understand the step's intent.
+        substeps (List[str]): A list of smaller, internal actions or objectives the `agent_to_call` should
+            accomplish within this single `PlanStep`. These guide the executing agent's
+            internal reasoning and are useful for detailed verification.
+        status (PlanStepStatus): The current execution status of this step. The planner must set this to 'PENDING'
+            for all new plan steps. It tracks progress for the workflow and aids re-planning.
     """
     agent_to_call: str
     input_for_agent: Any
@@ -58,28 +66,21 @@ class PlanStep(TypedDict):
 
 class HistoryEntry(TypedDict):
     """
-    Represents a single, immutable entry in the chronological history log of the agent's actions and observations.
-    Each entry provides an audit trail of what happened, when, by which component, and with what outcome.
+    Records a chronological event within the agent's workflow.
+    The GlobalPlanner uses this history to understand past actions, results, and errors
+    for informed decision-making, especially during re-planning.
 
     Attributes:
-        timestamp (str): An ISO-formatted string indicating when this history event occurred.
-            Crucial for maintaining a chronological order and for analyzing the sequence of operations.
-        node (str): The identifier (string name) of the LangGraph node or agent that performed this action.
-            Crucial for attributing actions and outputs to specific components of the agent system.
-        action (str): A high-level description of the specific action performed by the node (e.g., "Generated Plan", "Executed Web Search Tool").
-            Crucial for providing context on what the entry represents at a glance.
-        input_to_node (Any): A representation of the primary input data or context that the `node` received for this specific action.
-            Crucial for debugging and understanding why a particular action was taken. Should be concise if the full input is very large.
-        output_from_node (Any): A representation of the primary output or result produced by the `node` for this action.
-            Crucial for understanding the outcome of an action. Should be a summary or key findings if the full output is too large.
-        status (Optional[Literal["SUCCESS", "FAILED", "SKIPPED", "IN_PROGRESS"]]): The overall status or outcome of this specific history event/action within the node.
-            Crucial for quickly assessing whether an operation succeeded or failed.
-        error_details (Optional[str]): If the 'status' is "FAILED", this field contains a detailed message or reason for the failure.
-            Crucial for in-depth debugging and for the GlobalPlanner to inform its re-planning strategy.
-        model_used (Optional[str]): The identifier of the LLM model (e.g., "gemini-pro", "claude-3-opus") that was primarily used for this action, if applicable.
-            Crucial for audit trails, performance analysis, and for supporting dynamic model switching or heterogeneous agent models.
-        plan_snapshot (Optional[List[PlanStep]]): An optional snapshot of the `current_plan` at the moment this history entry was recorded.
-            Crucial specifically when the GlobalPlanner generates or re-generates a plan, providing a historical record of plan evolution.
+        timestamp (str): ISO formatted timestamp when this entry was recorded.
+        node (str): The name of the LangGraph node that processed the state to create this entry
+            (e.g., 'planner_node', 'researcher_agent_node', 'verifier_node').
+        action (str): A brief description of the specific action or purpose of this history entry.
+        input_to_node (Any): A snapshot of the relevant input state or data the node received for processing.
+        output_from_node (Any): A snapshot of the relevant output or state changes produced by the node.
+        status (HistoryEntryStatus): The outcome of the node's execution for this specific entry.
+        model_used (Optional[str]): The LLM model name used by the node, if applicable. Optional.
+        plan_snapshot (Optional[List[PlanStep]]): A snapshot of the `current_plan` *after* this node's processing.
+            Useful for understanding plan evolution and context for re-planning. Optional.
     """
     timestamp: str
     node: str
@@ -96,34 +97,34 @@ class HistoryEntry(TypedDict):
 
 class AgentState(TypedDict):
     """
-    Represents the complete and dynamic state of the multi-agent system at any given point in its execution.
-    This is the central blackboard where all information flows between different agent nodes.
-    It is crucial for enabling agents to read necessary context, update progress, and pass data to subsequent steps,
-    and provides the LLM with all necessary information to make informed decisions for planning, execution, and re-planning.
+    The central, mutable state representing the agent's entire workflow.
+    This state is passed between LangGraph nodes. The GlobalPlanner receives and updates
+    this state to manage planning, execution, and re-planning.
+    Lists are automatically appended by LangGraph due to `Annotated[..., operator.add]`.
 
     Attributes:
-        query (str): The original user query or GAIA question that initiated the agent's task.
-            Crucial as the ultimate goal and overall context for all subsequent planning and execution.
-        file_path (Optional[str]): An optional file path to a local resource (e.g., audio, image) provided with the initial query.
-            Crucial for agents that need to access local file content for processing.
-        current_plan (List[PlanStep]): The ordered list of `PlanStep`s representing the agent's current strategy to fulfill the `query`.
-            Crucial for guiding the agent's sequential execution and serves as the primary instructions for the executor.
-        current_step_index (int): The integer index indicating the current step being executed within the `current_plan`.
-            Crucial for tracking immediate progress, routing to the next step, and for resuming execution after a pause or re-plan.
-        current_agent_output (Any): The most recent primary output generated by the last executed specialized agent node.
-            Crucial for immediate processing by subsequent nodes (e.g., for verification, summarization, or final answer synthesis).
-        verification_status (Optional[VerificationStatus]): The outcome of the most recent verification attempt on `current_agent_output` (e.g., "success" or "failure").
-            Crucial for the router to decide whether to proceed, retry the current step, or trigger a re-planning phase.
-        retry_count (int): A counter for how many times the *current* `PlanStep` has been retried after a `FAILED` verification status.
-            Crucial for preventing infinite loops and for triggering a re-plan by the GlobalPlanner after a threshold is met.
-        history (List[HistoryEntry]): A chronological, append-only list of `HistoryEntry` objects, detailing all significant actions and observations.
-            Crucial for debugging, providing comprehensive context for the LLM (especially the GlobalPlanner for reflection and re-planning), and auditing.
-        final_answer (Optional[str]): The agent's synthesized answer to the original `query` once all necessary steps are completed and verified.
-            Crucial as the ultimate output of the agent's task.
-        confidence (ConfidenceLevel): The agent's assessment of its confidence level ("high" or "low") in the `final_answer`.
-            Crucial for informing downstream systems or the user about the reliability of the provided answer.
-        error_message (Optional[str]): A detailed message regarding any *current* error encountered during the most recent step's execution or verification.
-            Crucial for providing immediate error feedback to the GlobalPlanner, enabling rapid problem-solving or re-planning for the current issue.
+        query (str): The original user query that triggered the agent's workflow. This is the ultimate goal.
+        file_path (Optional[str]): The local path to an uploaded file, if the `query` involves one. Optional.
+        current_plan (Annotated[List["PlanStep"], operator.add]): The ordered list of `PlanStep`s currently guiding the agent's execution.
+            The planner is responsible for generating and (during re-planning) modifying this list.
+            New steps are appended automatically by LangGraph's state graph.
+        current_step_index (int): The 0-based index of the `PlanStep` currently being executed or just completed.
+            The planner uses this to know which step needs attention (e.g., on failure).
+        current_agent_output (Any): The output (e.g., text, JSON) produced by the most recently executed `PlanStep`'s agent.
+            This is often the input for the next step or for verification by the VerifierAgent.
+        verification_status (Optional[VerificationStatus]): The outcome of the most recent output verification ('success' or 'failure').
+            The planner must check this after a step to decide on continuation or re-planning. Optional.
+        retry_count (int): The number of retries attempted for the `current_step_index`.
+            The planner uses this to decide if a step should be re-attempted or if re-planning is necessary.
+        history (Annotated[List["HistoryEntry"], operator.add]): A chronological, append-only record of all significant actions, inputs, and outputs
+            from executed nodes. The GlobalPlanner uses this comprehensive context for reflection,
+            re-planning, and auditing.
+        final_answer (Optional[str]): The final, synthesized answer to the `query`, populated by the `final_answer_agent_node`
+            once all necessary steps are completed and verified. Optional.
+        confidence (ConfidenceLevel): The agent's confidence level ('high' or 'low') in its `final_answer`.
+            The planner might use this to decide if further refinement is needed before concluding.
+        error_message (Optional[str]): A detailed message if an error occurred during the execution or verification of the `current_step_index`.
+            The planner must read this to understand and address failures during re-planning. Optional.
     """
     query: str
     file_path: Optional[str]
