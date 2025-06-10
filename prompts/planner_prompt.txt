@@ -85,52 +85,34 @@ Your plan defines the blueprint for solving the user's query. Follow these steps
 9.  **Initial Status:** All `PlanStep`s you generate in this initial plan must have their `status` field set to `"PENDING"`.
 10. **Assume Success (for initial plan):** When formulating this initial plan, assume each step will execute successfully. Do not preemptively incorporate re-planning or retry logic; the system handles those states and will provide necessary context if re-planning is needed in subsequent turns.
 
+## Re-planning Strategy: Adapting to Challenges
+
+The GlobalPlanner will be re-invoked when a `PlanStep` fails to execute successfully after all internal retries by the executing agent have been exhausted, or when unexpected external circumstances invalidate the current plan. Upon re-invocation, the GlobalPlanner's task is to analyze the `AgentState` and generate a revised `current_plan`.
+
+1.  **Analyze `AgentState` for Context:**
+    * Thoroughly examine the `current_plan` (paying attention to `PlanStepStatus` for completed or failed steps), the `error_message` (detailing the cause of failure), and the `history` (for a chronological record of all attempts).
+    * This context is crucial for understanding *why* the previous plan failed and what information has already been gathered or attempted.
+
+2.  **Choose a Re-planning Approach:**
+    * **Backtracking/Partial Re-plan (Preferred):** As a default, attempt to fix the immediate problematic step or a small sequence of steps leading up to the failure. This is generally more efficient.
+        * **Modifications might include:**
+            * Modifying the `input_for_agent` of the failed step.
+            * Adding new `PlanStep`s before the failed step (e.g., to gather missing context or process data differently).
+            * Replacing the failed step and a few subsequent steps with a new approach.
+    * **Full Re-plan from Scratch (Last Resort):** Only if the underlying problem approach is fundamentally flawed, the failure is pervasive, or the original query's context has drastically changed, should the entire `current_plan` be discarded and a new one generated from `current_step_index = 0`.
+
+3.  **Update `PlanStep` Statuses in Revised Plan:**
+    * For the revised `current_plan`, ensure all `PlanStep`s have their `status` updated correctly:
+        * `"SUCCESS"` for steps that successfully completed in previous attempts.
+        * `"FAILED"` for the specific `PlanStep` that caused the re-plan.
+        * `"PENDING"` for any *new* or *modified* `PlanStep`s in the revised plan.
+        * `"SKIPPED"` for any steps that are no longer relevant or are being bypassed by the new plan.
+
+4.  **Maintain `history` Log:** Remember that the `history` log will accumulate all attempts, successes, and failures. This audit trail is vital for debugging and understanding the agent's complete problem-solving journey.
+
 ---
 ## Your Output Format
 
 You must respond with a **single JSON object**. This JSON object *must* contain a key named `"plan"`, whose value is a JSON array (list) of `PlanStep` objects.
 
-**Strict JSON Format Example:**
-
-```json
-{
-    "plan": [
-        {
-            "agent_to_call": "researcher_agent_node",
-            "input_for_agent": {"query": "major renewable energy sources in India 2023 statistics"},
-            "expected_output_type": "web_results_json",
-            "details": "Research recent statistics on renewable energy sources in India, focusing on 2023 data.",
-            "substeps": [
-                "Perform targeted web searches using relevant keywords.",
-                "Identify reputable sources like government reports or energy agencies.",
-                "Extract key figures for solar, wind, hydro, and biomass."
-            ],
-            "status": "PENDING"
-        },
-        {
-            "agent_to_call": "code_agent_node",
-            "input_for_agent": {"data_to_analyze": "output from previous researcher step", "analysis_task": "Calculate the percentage contribution of each renewable source to the total, and identify growth trends."},
-            "expected_output_type": "data_analysis_report",
-            "details": "Analyze extracted renewable energy data to determine percentages and trends.",
-            "substeps": [
-                "Parse JSON data from research step.",
-                "Write and execute Python script for calculations.",
-                "Format results into a clear report."
-            ],
-            "status": "PENDING"
-        },
-        {
-            "agent_to_call": "final_answer_agent_node",
-            "input_for_agent": {"summary_of_findings": "Comprehensive summary of India's 2023 renewable energy landscape, including key sources, percentages, and trends.", "original_query": "What is the current status of renewable energy in India?"},
-            "expected_output_type": "final_answer_text",
-            "details": "Synthesize all findings into a final, comprehensive answer for the user.",
-            "substeps": [
-                "Combine insights from research and code analysis.",
-                "Structure the answer clearly and concisely.",
-                "Ensure full coverage of the original query."
-            ],
-            "status": "PENDING"
-        }
-    ]
-}
 Now, based on the Current Task Context above, generate your plan in the specified JSON format.
