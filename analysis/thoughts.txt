@@ -26,6 +26,8 @@ List of tools I need:
 
     - Needed for indexing the web page results/wiki page results maybe?
 
+Agents workflow diagram refer to analysis/visualization.ipynb
+
 Important Links:
 
 * https://huggingface.co/datasets/gaia-benchmark/GAIA

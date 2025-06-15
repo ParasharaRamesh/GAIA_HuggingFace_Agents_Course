@@ -19,3 +19,8 @@ setuptools-rust
 torch
 numba
 yt_dlp
+graphviz
+pygraphviz
+IPython
+Pillow
+grandalf

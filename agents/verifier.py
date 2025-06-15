@@ -1,1 +1,0 @@
-# defines the verifier node
