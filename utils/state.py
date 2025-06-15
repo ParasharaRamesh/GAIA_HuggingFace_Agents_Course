@@ -48,8 +48,6 @@ def create_type_string(typed_dict_class: type) -> str:
     return type_string
 
 if __name__ == "__main__":
-    print("--- Testing create_type_string for PlanStep ---")
-    print(create_type_string(PlanStep))
     print("\n--- Testing create_type_string for HistoryEntry ---")
     print(create_type_string(HistoryEntry))
     print("\n--- Testing create_type_string for AgentState ---")
