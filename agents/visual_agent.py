@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 from agents.model import BaseChatModel
 
-
+# refer to meta vjepa2
 class VisualAgent:
     def __init__(self, llm: BaseChatModel):
         """Initializes the VisualAgent node."""
