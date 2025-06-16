@@ -1,5 +1,4 @@
 # Langgraph orchestration code
-# TODO.x use langfuse for debugging?
 
 import io
 from PIL import Image as PILImage

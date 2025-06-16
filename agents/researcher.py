@@ -1,20 +1,19 @@
-import datetime
-from typing import Any, List, Dict
+from datetime import datetime
+import os
+
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import \
-    JsonOutputParser  # Not strictly used for tool calling, but good for structured output if LLM returns it
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.language_models import BaseChatModel  # For type hinting the LLM
+
+from langchain.agents import create_react_agent, AgentExecutor
+from langchain_core.agents import AgentFinish
 
 # Import AgentState and HistoryEntry from state.py
 from state import AgentState, HistoryEntry, HistoryEntryStatus
 from utils.state import create_type_string
 
 # Import tools from search.py (assuming tools directory is alongside this file or in PYTHONPATH)
-from tools.search import web_search, wiki_search, arxiv_search, web_scraper
+from tools.search import web_search, wikipedia_search, arxiv_search, web_scraper
 
-#TODO. check if it is invoke or call
 class ResearcherAgent:
     """
     Agent responsible for conducting research using various web search and scraping tools.
@@ -24,148 +23,142 @@ class ResearcherAgent:
 
     def __init__(self, llm: BaseChatModel):
         self.llm = llm
-        # Expose relevant tools to the LLM.
-        # Ensure these functions are actually imported and available in the current scope.
-        self.tools = [web_search, wiki_search, arxiv_search, web_scraper]
 
-        # Define the prompt for the researcher agent.
-        # It guides the LLM to use the tools effectively based on the state.
-        self.prompt_template = ChatPromptTemplate.from_messages([
-            ("system",
-             "You are the ResearcherAgent. Your primary goal is to find relevant information "
-             "based on the provided `active_agent_task` from the Planner. "
-             "Use the available tools (web_search, wikipedia_search, arxiv_search, web_scraper) effectively "
-             "to fulfill the task. Prioritize accurate and concise information. "
-             "If the task requires scraping specific URLs, use `web_scraper`.\n"
-             "If you encounter an error with a tool or cannot complete the task, report it concisely.\n"
-             "You operate within a broader workflow managed by a Planner. Your current task is a sub-task.\n"
-             "\n--- Current AgentState Schema ---\n{agent_state_schema}\n"
-             "\n--- HistoryEntry Schema ---\n{history_entry_schema}\n"
-             ),
-            ("human", "User Query (Overall Goal): {query}\n"
-                      "High-level roadmap step: {current_roadmap_step}\n"
-                      "**Active Agent Task:** {active_agent_task}\n"
-                      "Conversation History with Planner for this sub-task: {conversation_history_with_agent}\n"
-                      "Previous output from this agent (if re-attempting this task): {active_agent_output}\n"
-                      "Planner's latest feedback for this task: {planner_feedback}\n"
-                      "Previous error encountered by this agent (if any): {active_agent_error_message}\n"
-                      "\nPerform the task and return your findings as directly as possible."
-             )
+        # Expose relevant tools to the LLM.
+        self.tools = [web_search, wikipedia_search, arxiv_search, web_scraper]
+
+        # prompt path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        prompts_dir = os.path.join(current_dir, '..', 'prompts')
+        researcher_react_prompt_path = os.path.join(prompts_dir, 'researcher_react_prompt.txt')
+
+        # load prompts
+        react_prompt_content = ""
+        try:
+            with open(researcher_react_prompt_path, 'r', encoding='utf-8') as f:
+                react_prompt_content = f.read()
+
+            print(f"[ResearcherAgent.init]: Loaded react prompt from {researcher_react_prompt_path}")
+        except Exception as e:
+            raise RuntimeError(f"An unexpected error occurred while loading ResearcherAgent prompts: {e}")
+
+        # Create the ReAct agent's prompt template. The `human` message uses specific placeholders
+        # that create_react_agent expects for its internal loop.
+        self.react_prompt_template = ChatPromptTemplate.from_messages([
+            ("system", react_prompt_content),
+            ("human", "{input}\n{agent_scratchpad}")  # These are standard ReAct agent placeholders
         ])
 
-        # Bind the tools to the LLM for function calling capabilities
-        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        # Create the ReAct agent (this is a Runnable)
+        self.agent_runnable = create_react_agent(
+            llm=self.llm,
+            tools=self.tools,
+            prompt=self.react_prompt_template
+        )
 
-    def invoke(self, state: AgentState) -> AgentState:
+        # Create the AgentExecutor to run the ReAct agent (handles the Thought/Action/Observation loop)
+        self.agent_executor = AgentExecutor(
+            agent=self.agent_runnable,
+            tools=self.tools,
+            verbose=True,
+            handle_parsing_errors=True,
+            max_iterations=6,
+            return_intermediate_steps=True
+        )
+        print(f"[ResearcherAgent.init]: LLM successfully bound with tools and initialized!")
+
+    def __call__(self, state: AgentState) -> AgentState:
         """
         Executes the researcher's task based on the current AgentState and updates the state
         with research findings or an error message.
         """
-        print(f"\n--- ResearcherAgent: Starting task for roadmap step {state['current_roadmap_step_index']} ---")
+        print(f"[ResearcherAgent.call]: Starting task for roadmap step {state['current_roadmap_step_index']}")
 
         # Determine the current high-level roadmap step for context in prompt
         current_roadmap_step = state['high_level_roadmap'][state['current_roadmap_step_index']] \
             if state['high_level_roadmap'] and state['current_roadmap_step_index'] < len(state['high_level_roadmap']) \
             else "N/A"
 
-        # Prepare input for the LLM call using the prompt template
-        llm_input = {
-            "query": state["query"],
-            "current_roadmap_step": current_roadmap_step,
-            "active_agent_task": state["active_agent_task"],
-            "conversation_history_with_agent": state["conversation_history_with_agent"],
-            "active_agent_output": state["active_agent_output"],
-            "planner_feedback": state["planner_feedback"],
-            "active_agent_error_message": state["active_agent_error_message"],
-            "history": state["history"],
-            "agent_state_schema": create_type_string(AgentState),
-            "history_entry_schema": create_type_string(HistoryEntry)
-        }
-
         agent_output = None
         error_message = None
-        tool_calls = []
         status = HistoryEntryStatus.SUCCESS
+        extracted_tool_calls_for_history = []
+        react_agent_input_text = ""
 
         try:
-            # Invoke the LLM with the prepared input. The LLM might decide to call a tool.
-            response = self.llm_with_tools.invoke(self.prompt_template.invoke(llm_input))
+            # Prepare the input string for the internal ReAct agent.
+            # This is what the ReAct agent will reason over.
+            react_agent_input_text = (
+                f"Overall User Query: {state['query']}\n"
+                f"Current High-Level Roadmap Step: {current_roadmap_step}\n"
+                f"Specific Task for Researcher: {state['active_agent_task']}\n"
+                f"Conversation History with Planner for this task: {state['conversation_history_with_agent']}\n"
+                f"Previous output from this agent (if re-attempting): {state['active_agent_output']}\n"
+                f"Planner's latest feedback: {state['planner_feedback']}\n"
+                f"Previous error (if any): {state['active_agent_error_message']}\n\n"
+                f"Proceed with the 'Specific Task for Researcher' using your tools. Provide a concise final answer."
+            )
 
-            # Check if the LLM decided to call any tools
-            if response.tool_calls:
-                tool_calls = response.tool_calls
-                tool_output_messages = []
+            # Invoke the AgentExecutor. It will run the ReAct loop and return the final answer.
+            executor_result = self.agent_executor.invoke({"input": react_agent_input_text})
 
-                # Iterate through all tool calls suggested by the LLM
-                for tool_call in tool_calls:
-                    print(f"--- ResearcherAgent: Calling tool '{tool_call.name}' with args: {tool_call.args} ---")
-                    try:
-                        # Dynamically find and invoke the tool function from the imported tools
-                        # Ensure tool functions are accessible (e.g., imported into this file's global scope)
-                        tool_func = None
-                        for t in self.tools:
-                            if t.name == tool_call.name:
-                                tool_func = t
-                                break
+            # get the agent output
+            agent_output = executor_result.get("output")
+            if not agent_output:  # Fallback if agent_executor output is missing
+                agent_output = "Internal ReAct agent completed but returned no specific output."
+                status = HistoryEntryStatus.FAILED
 
-                        if tool_func:
-                            # Use .invoke() on the tool object (LangChain's tool decorator adds this)
-                            tool_result = tool_func.invoke(tool_call.args)
-                            tool_output_messages.append(f"Tool {tool_call.name} Output:\n{tool_result}")
-                        else:
-                            raise ValueError(f"Tool '{tool_call.name}' not recognized by ResearcherAgent.")
-
-                    except Exception as tool_err:
-                        # Capture tool-specific errors
-                        tool_output_messages.append(f"Tool {tool_call.name} Error: {tool_err}")
-                        error_message = str(tool_err)
-                        status = HistoryEntryStatus.FAILED
-                        print(f"--- ResearcherAgent: Tool error occurred: {tool_err} ---")
-
-                # Aggregate tool outputs (or errors) into the agent's main output
-                if tool_output_messages:
-                    agent_output = "\n".join(tool_output_messages)
+            # Extract tool calls from intermediate_steps if available
+            intermediate_steps = executor_result.get("intermediate_steps", [])
+            for action, observation in intermediate_steps:
+                if hasattr(action, 'tool') and hasattr(action, 'tool_input'):
+                    extracted_tool_calls_for_history.append({
+                        "tool_name": action.tool,
+                        "tool_input": action.tool_input,
+                        "tool_output": observation  # The observation is the tool's raw output
+                    })
+                # Handle cases where action might not directly have tool/tool_input attributes
+                # (e.g., if it's an AgentFinish or other non-tool action)
+                elif hasattr(action, 'log'):  # For AgentFinish, log often contains the final answer thought
+                    extracted_tool_calls_for_history.append({
+                        "log_entry": action.log,
+                        "observation": observation  # The observation in this case might be the final answer itself
+                    })
                 else:
-                    # Fallback if LLM suggested tools but no output was generated for some reason
-                    agent_output = response.content if response.content else "No direct output from LLM after tool call attempt."
-
-            else:
-                # If LLM did not call any tools, its direct response is the agent's output
-                agent_output = response.content
+                    extracted_tool_calls_for_history.append({
+                        "action_type": str(type(action)),
+                        "action_details": str(action),
+                        "observation": str(observation)
+                    })
 
         except Exception as e:
-            # Capture any errors during the agent's overall execution (LLM call or processing)
             error_message = str(e)
             status = HistoryEntryStatus.FAILED
-            print(f"--- ResearcherAgent: Agent execution error: {e} ---")
+            print(f"[ResearcherAgent.call]: AgentExecutor error: {e}")
 
         # Create a mutable copy of the state to update
         new_state = state.copy()
         new_state["active_agent_name"] = "ResearcherAgent"
         new_state["active_agent_output"] = agent_output
-        new_state["active_agent_error_message"] = error_message  # Update with error if any
+        new_state["active_agent_error_message"] = error_message
 
-        # Add the agent's response to the conversation history for the current sub-task
-        # This will be read by the Planner for feedback/decision-making
         new_state["conversation_history_with_agent"].append({
             "role": "agent",
             "message": agent_output if agent_output is not None else (
                 error_message if error_message else "No output generated.")
         })
 
-        # Add a record of this agent's operation to the overall workflow history
         new_state["history"].append(HistoryEntry(
             agent_name="ResearcherAgent",
-            timestamp=datetime.now().isoformat(),
+            timestamp= datetime.now().isoformat(),
             input={
-                "task": state["active_agent_task"],
-                "query": state["query"],
-                "current_roadmap_step": current_roadmap_step
+                "task_for_react_agent": state["active_agent_task"],
+                "full_input_to_react_agent": react_agent_input_text,
+                "query": state["query"]
             },
             output=agent_output,
             status=status,
-            tool_calls=[tc.dict() for tc in tool_calls] if tool_calls else None,
-            # Convert tool_calls to dict for HistoryEntry
+            tool_calls=extracted_tool_calls_for_history,
             error=error_message
         ))
 

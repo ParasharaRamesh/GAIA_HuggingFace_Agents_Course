@@ -1,18 +1,5 @@
-'''
-This file contains tools related to search.
-
-Plan is to implement the following tools:
-
-1. websearch tool
-2. webscraper tool
-3. arxiv/academic search tool
-4. wikipedia search/scraper tool
-
-TODO.0 return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
-TODO.1 perhaps a requests tool, this way it would have the tools download anything and if need be save it.  
-
-'''
-from typing import Union, List
+# This file contains tools related to search.
+from typing import Union, List, Dict, Any
 
 from langchain_community.document_loaders import WikipediaLoader, WebBaseLoader, ArxivLoader
 from langchain_core.tools import tool
@@ -20,7 +7,7 @@ from duckduckgo_search import DDGS
 
 
 @tool
-def web_search(query: str, max_results: int = 5) -> str:
+def web_search(query: str, max_results: int = 5) -> Dict[str, List[Dict[str, str]]]:
     """
     Search the web using DuckDuckGo and return a formatted list of results.
 
@@ -29,7 +16,12 @@ def web_search(query: str, max_results: int = 5) -> str:
         max_results: Number of results to retrieve (default 5).
 
     Returns:
-        A formatted string of search results.
+        A dictionary with a single key 'web_results'.
+        The value associated with 'web_results' is a list of dictionaries.
+        Each dictionary represents a search result and contains:
+        - 'title': The title of the search result (str).
+        - 'url': The URL of the search result (str).
+        - 'body': A snippet/summary of the search result content (str).
     """
     results = []
     with DDGS() as ddgs:
@@ -47,16 +39,23 @@ def web_search(query: str, max_results: int = 5) -> str:
 
 
 @tool
-def arxiv_search(query: str, max_results: int = 2) -> dict:
+def arxiv_search(query: str, max_results: int = 2) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Search Arxiv for a query and return up to max_results documents.(default is 2)
+    Search Arxiv for a query and return up to max_results documents.
 
     Args:
-        query: The search query.
-        max_results: Maximum number of search results to return.
+        query: The search query for Arxiv.
+        max_results: Maximum number of search results to return (default is 2, 0 indexed).
 
     Returns:
-        A dictionary containing the search results, each with source URL, summary, and page content.
+        A dictionary with a single key 'arxiv_results'.
+        The value associated with 'arxiv_results' is a list of dictionaries.
+        Each dictionary represents an Arxiv document and contains detailed metadata (some of which can be optional) such as:
+        - 'published': Publication date (str).
+        - 'title': The title of the paper (str).
+        - 'authors': List of authors comma seperated (str).
+        - 'summary': Abstract of the paper (str).
+        - 'content': Page content of the paper (str).
     """
     loader = ArxivLoader(query=query, load_max_docs=max_results)
     docs = loader.load()
@@ -64,9 +63,10 @@ def arxiv_search(query: str, max_results: int = 2) -> dict:
     results = []
     for doc in docs:
         results.append({
-            "source": doc.metadata.get("source", ""),
-            "summary": doc.metadata.get("summary", ""),
-            "page": doc.metadata.get("page", ""),
+            "published": doc.metadata.get("published", ""),
+            "title": doc.metadata.get("Title", ""),
+            "authors": doc.metadata.get("Authors", ""),
+            "summary": doc.metadata.get("Summary", ""),
             "content": doc.page_content
         })
 
@@ -74,16 +74,22 @@ def arxiv_search(query: str, max_results: int = 2) -> dict:
 
 
 @tool
-def wiki_search(query: str, load_max_docs: int = 3) -> str:
+def wikipedia_search(query: str, load_max_docs: int = 3) -> Dict[str, List[Dict[str, str]]]:
     """
-    Search Wikipedia for a query and return maximum 3 results with page content.
+    Search Wikipedia for a query and return structured details of relevant articles.
 
     Args:
-        query: The search query.
-        load_max_docs: The maximum number of documents to load. Default is 3 (good enough for most tasks)
+        query: The search query for Wikipedia.
+        load_max_docs: Maximum number of Wikipedia articles to load (default is 3).
 
     Returns:
-        A formatted string containing the source URL, summary and page content for the related/relevant articles based on the 'load_max_docs' parameter
+        A dictionary with a single key 'wiki_results'.
+        The value associated with 'wiki_results' is a list of dictionaries.
+        Each dictionary represents a Wikipedia article and contains:
+        - 'source': The URL of the Wikipedia page (str).
+        - 'summary': A brief summary of the article (str).
+        - 'page': The title of the Wikipedia page (str).
+        - 'content': The full text content of the page (str).
     """
     docs = WikipediaLoader(query=query, load_max_docs=load_max_docs).load()
 
@@ -100,15 +106,19 @@ def wiki_search(query: str, load_max_docs: int = 3) -> str:
 
 
 @tool
-def web_scraper(urls: Union[str, List[str]]) -> dict:
+def web_scraper(urls: Union[str, List[str]]) -> Dict[str, Dict[str, Any]]:
     """
     Scrape full HTML content from one or more URLs.
 
     Args:
-        urls: A single URL string or a list of URL strings.
+        urls: A single URL string or a list of URL strings to scrape.
 
     Returns:
-        A dictionary mapping each URL to its scraped HTML content and metadata.
+        A dictionary where each key is a URL string.
+        The value for each URL is another dictionary containing:
+        - 'content': The full HTML content of the scraped page (str).
+        - 'metadata': A dictionary of various metadata associated with the page,
+                      which may include 'source', 'title', 'language', etc. (Dict[str, Any]).
     """
     # Ensure URLs is a list
     url_list = [urls] if isinstance(urls, str) else urls
@@ -124,7 +134,7 @@ def web_scraper(urls: Union[str, List[str]]) -> dict:
     for doc in docs:
         url = doc.metadata.get("source", "unknown_url")
         results[url] = {
-            "html_content": doc.page_content,
+            "content": doc.page_content,
             "metadata": doc.metadata
         }
 
@@ -132,4 +142,4 @@ def web_scraper(urls: Union[str, List[str]]) -> dict:
 
 
 if __name__ == '__main__':
-    print(web_search("sanju samson"))
+    print(arxiv_search("clustering"))
