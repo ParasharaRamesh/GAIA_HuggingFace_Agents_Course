@@ -36,6 +36,15 @@ Thoughts/Potential TODOS:
 . return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
 . perhaps a requests tool, this way it would have the tools download anything and if need be save it.
 
+TODO:
+
+1. finish audio agent in the similar manner
+2. go to code agent
+3. then go to visual agent vjepa whatever
+4. then go to planner
+5. add api keys and what not
+6. test each agent flow seperately by giving custom questions
+
 
 Important Links:
 
