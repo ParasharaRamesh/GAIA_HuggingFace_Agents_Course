@@ -6,8 +6,9 @@ import pandas as pd
 import re
 import mimetypes
 import json
+import uuid
 
-from tools.audio import model # this triggers the model to be loaded
+from tools.audio import model # this triggers the whisper model to be loaded
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -143,6 +144,55 @@ def evaluate_random_question(profile: gr.OAuthProfile | None):
 
     # No submission to server for a single random question.
     status_message = "✅ Agent evaluated the random question successfully!"
+    results_df = pd.DataFrame(results_log)
+    return status_message, results_df
+
+
+def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_text: str):
+    """
+    Runs the BasicAgent on a custom question provided by the user.
+    """
+    if profile:
+        username = f"{profile.username}"
+        print(f"User logged in: {username}")
+    else:
+        print("User not logged in.")
+        return "Please Login to Hugging Face with the button.", None
+
+    agent_code = get_agent_code_link()
+    if not agent_code:
+        return "Error getting the agent code link from the SPACE_ID environment variable", None
+
+    if not custom_question_text or len(custom_question_text.strip()) < 5:
+        return "Please enter a custom question of at least 5 characters.", None
+
+    # Instantiate Agent
+    try:
+        agent = BasicAgent()  # This will be your full agent system later
+    except Exception as e:
+        error_msg = f"Error instantiating agent: {e}"
+        return error_msg, None
+
+    # Create a mock question data for the custom question
+    # We use a UUID to ensure a unique task_id for tracking
+    mock_task_id = f"custom_{uuid.uuid4()}"
+    mock_question_data = [{
+        "task_id": mock_task_id,
+        "question": custom_question_text,
+        "file_name": None  # Custom questions typically don't have associated files unless manually handled
+    }]
+
+    print(f"\nRunning agent on custom question (task_id: {mock_task_id}): {custom_question_text[:100]}...\n")
+
+    # Run the agent with the mock question
+    answers_payload, results_log = run_agent(agent, mock_question_data)
+
+    if not answers_payload or len(answers_payload) == 0:
+        print("Agent did not produce any answer for the custom question.\n")
+        return "Agent did not produce any answer for the custom question.", pd.DataFrame(results_log)
+
+    # No submission to server for a custom question.
+    status_message = "✅ Agent evaluated the custom question successfully!"
     results_df = pd.DataFrame(results_log)
     return status_message, results_df
 
@@ -348,7 +398,15 @@ with gr.Blocks() as demo:
 
     gr.LoginButton()
 
-    # evaluation buttons
+    gr.Markdown("---")  # Optional separator for clarity
+    gr.Markdown("### Test Your Agent with a Custom Question")
+    custom_question_input = gr.Textbox(
+        label="Enter your custom question here:",
+        placeholder="e.g., 'What are the main features of the latest iPhone model?'",
+        lines=3
+    )
+    run_custom_button = gr.Button("Run Agent on Custom Question")
+
     run_button = gr.Button("Run Evaluation & Submit All Answers")
     run_random_button = gr.Button("Evaluate on Random Question")
 
@@ -365,6 +423,12 @@ with gr.Blocks() as demo:
 
     run_random_button.click(
         fn=evaluate_random_question,
+        outputs=[status_output, results_table]
+    )
+
+    run_custom_button.click(
+        fn=evaluate_custom_question,
+        inputs=[ custom_question_input],
         outputs=[status_output, results_table]
     )
 
