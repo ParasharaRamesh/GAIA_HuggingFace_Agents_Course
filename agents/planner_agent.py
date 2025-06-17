@@ -61,7 +61,7 @@ class PlannerAgent:
         summary += f"Active Agent: {state.get('active_agent_name', 'None')}\n"
         summary += f"Active Agent's Last Task: {state.get('active_agent_task', 'None')}\n"
         summary += f"Active Agent's Last Output: {str(state.get('active_agent_output', 'None'))[:500]}...\n"  # Truncate long outputs
-        summary += f"Planner Feedback from Last Turn: {state.get('planner_feedback', 'None')}\n"
+        summary += f"Planner Feedback from Last Turn: {state.get('active_agent_guidance', 'None')}\n"
         summary += f"Active Agent's Last Error: {state.get('active_agent_error_message', 'None')}\n"
         summary += f"Final Answer so far: {state.get('final_answer', 'None')}\n"
         return summary
@@ -132,7 +132,7 @@ class PlannerAgent:
 
             next_agent = parsed_response.get("next_agent")
             next_task = parsed_response.get("next_task")
-            planner_feedback = parsed_response.get("planner_feedback")
+            active_agent_guidance = parsed_response.get("active_agent_guidance")
             roadmap_action = parsed_response.get("roadmap_update", {}).get("action")
             roadmap_value = parsed_response.get("roadmap_update", {}).get("value")
 
@@ -142,7 +142,7 @@ class PlannerAgent:
             new_state = state.copy()
             new_state["active_agent_name"] = next_agent
             new_state["active_agent_task"] = next_task
-            new_state["planner_feedback"] = planner_feedback
+            new_state["active_agent_guidance"] = active_agent_guidance
             new_state["active_agent_error_message"] = None  # Clear previous error when planner acts
 
             # Update roadmap based on planner's decision
@@ -168,7 +168,7 @@ class PlannerAgent:
                 output={
                     "next_agent": next_agent,
                     "next_task": next_task,
-                    "planner_feedback": planner_feedback,
+                    "active_agent_guidance": active_agent_guidance,
                     "roadmap_update": parsed_response.get("roadmap_update")
                 },
                 status=HistoryEntryStatus.SUCCESS,

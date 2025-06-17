@@ -91,7 +91,7 @@ class AudioAgent:
                 f"Specific Task for Audio Agent: {state['active_agent_task']}\n"
                 f"Conversation History with Planner for this task: {state['conversation_history_with_agent']}\n"
                 f"Previous output from this agent (if re-attempting): {state['active_agent_output']}\n"
-                f"Planner's latest feedback: {state['planner_feedback']}\n"
+                f"Planner's latest feedback: {state['active_agent_guidance']}\n"
                 f"Previous error (if any): {state['active_agent_error_message']}\n\n"
                 f"Proceed with the 'Specific Task for Audio Agent' using your tools. Provide a concise final answer."
             )

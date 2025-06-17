@@ -43,7 +43,7 @@ class FinalAgent:
         query = state["query"]
         active_agent_output = state.get("active_agent_output")
         history_entries = state["history"] # History included for prompt formatting
-        planner_feedback = state.get("planner_feedback", "No specific feedback.")
+        active_agent_guidance = state.get("active_agent_guidance", "No specific feedback/guidance")
 
         # Create a mutable copy of the state to update
         new_state = state.copy()
@@ -60,7 +60,7 @@ class FinalAgent:
             current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             query=query,
             active_agent_output=active_agent_output if active_agent_output else "No specific output from previous agent.",
-            planner_feedback=planner_feedback,
+            active_agent_guidance=active_agent_guidance,
             history=self._format_history(history_entries) # History re-added to prompt formatting
         )
 
@@ -92,7 +92,7 @@ class FinalAgent:
             input={
                 "query": query,
                 "context_from_previous_agent": active_agent_output,
-                "planner_feedback_at_final_stage": planner_feedback
+                "active_agent_guidance": active_agent_guidance
             },
             output=final_answer_text,
             status=status,
