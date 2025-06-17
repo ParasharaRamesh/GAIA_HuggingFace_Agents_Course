@@ -7,7 +7,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 # Import AgentState and HistoryEntry from state.py
-from state import AgentState, HistoryEntry, HistoryEntryStatus
+from .state import AgentState, HistoryEntry, HistoryEntryStatus
 
 
 class VisualAgent:

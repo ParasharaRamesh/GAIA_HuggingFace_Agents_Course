@@ -11,7 +11,7 @@ from langchain_core.agents import AgentFinish
 from tools.interpreter import read_file, write_file, run_shell_command, run_python_script
 
 # Import AgentState and HistoryEntry from state.py - ensure state.py is accessible
-from state import AgentState, HistoryEntry, HistoryEntryStatus
+from .state import AgentState, HistoryEntry, HistoryEntryStatus
 
 class CodeAgent:
     """

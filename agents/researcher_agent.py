@@ -5,11 +5,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel  # For type hinting the LLM
 
 from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.agents import AgentFinish
 
 # Import AgentState and HistoryEntry from state.py
-from state import AgentState, HistoryEntry, HistoryEntryStatus
-from utils.state import create_type_string
+from .state import AgentState, HistoryEntry, HistoryEntryStatus
 
 # Import tools from search.py (assuming tools directory is alongside this file or in PYTHONPATH)
 from tools.search import web_search, wikipedia_search, arxiv_search, web_scraper
