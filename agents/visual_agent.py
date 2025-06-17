@@ -35,7 +35,7 @@ class VisualAgent:
         prompts_dir = os.path.join(current_dir, '..', 'prompts')
         self.visual_agent_prompt_path = os.path.join(prompts_dir, 'visual_agent_prompt.txt')
 
-    def __call__(self, state: AgentState) -> Dict[str, Any]:
+    def __call__(self, state: AgentState) ->AgentState:
         """
         Executes the VisualAgent's task based on the current AgentState.
 

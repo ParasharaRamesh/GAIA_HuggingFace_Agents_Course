@@ -38,14 +38,6 @@ Thoughts/Potential TODOS:
 
 TODO:
 
-1. finish audio agent in the similar manner
-2. go to code agent
-    - Riza code interpreter
-    - Python Tool
-    - Langsandbox
-    - lang codeact
-3. finish final agent
-3. then go to visual agent vjepa whatever
 4. then go to planner
 5. add api keys and what not (https://python.langchain.com/api_reference/langchain/chat_models/langchain.chat_models.base.init_chat_model.html)
 6. test each agent flow seperately by giving custom questions

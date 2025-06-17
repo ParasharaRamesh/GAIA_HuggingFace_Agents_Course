@@ -10,10 +10,9 @@ from typing import Dict, Any
 
 # Import your agent classes from their respective files
 from planner import Planner
-from researcher import Researcher
+from researcher import ResearcherAgent
 from visual_agent import VisualAgent
 from audio_agent import AudioAgent
-from generic_agent import GenericAgent
 from final_agent import FinalAgent
 from code_agent import CodeAgent
 
@@ -48,15 +47,6 @@ def route_from_specialized_agent(state: AgentState) -> str:
     return "planner" # Hardcoded for initial graph visualization
 
 
-def route_from_generic_agent(state: AgentState) -> str:
-    """
-    Placeholder router for the GenericAgent.
-    This logic will be filled in later. For now, it simply points to 'final_agent'.
-    """
-    print("Routing logic: From GenericAgent (empty logic). Directing to 'final_agent'.")
-    return "final_agent" # Hardcoded for initial graph visualization
-
-
 # --- Build the LangGraph Workflow ---
 
 # Initialize the workflow with a generic dictionary for state
@@ -66,11 +56,10 @@ workflow = StateGraph(AgentState)
 dummy_llm_instance = DummyLLM()
 
 planner = Planner(llm=dummy_llm_instance)
-researcher = Researcher(llm=dummy_llm_instance)
+researcher = ResearcherAgent(llm=dummy_llm_instance)
 audio_agent = AudioAgent(llm=dummy_llm_instance)
 code_agent = CodeAgent(llm=dummy_llm_instance)
 visual_agent = VisualAgent(llm=dummy_llm_instance)
-generic_agent = GenericAgent(llm=dummy_llm_instance)
 final_agent = FinalAgent(llm=dummy_llm_instance)
 
 
@@ -80,7 +69,6 @@ workflow.add_node("researcher", researcher)
 workflow.add_node("audio_agent", audio_agent)
 workflow.add_node("code_agent", code_agent)
 workflow.add_node("visual_agent", visual_agent)
-workflow.add_node("generic_agent", generic_agent)
 workflow.add_node("final_agent", final_agent)
 
 
@@ -102,9 +90,7 @@ workflow.add_conditional_edges(
         "audio_agent": "audio_agent",
         "code_agent": "code_agent",
         "visual_agent": "visual_agent",
-        "generic_agent": "generic_agent", # Although planner might send to generic, generic typically handles failures *from other agents*. For skeleton, we show this path.
-        "final_agent": "final_agent",
-        "planner": "planner"               # Self-loop for planner if it needs to re-evaluate
+        "final_agent": "final_agent"
     }
 )
 
@@ -113,9 +99,6 @@ workflow.add_edge("researcher", "planner")
 workflow.add_edge("audio_agent", "planner")
 workflow.add_edge("code_agent", "planner")
 workflow.add_edge("visual_agent", "planner")
-
-# 3. From GenericAgent to FinalAgent (last resort)
-workflow.add_edge("generic_agent", "final_agent")
 
 # Compile the graph
 app = workflow.compile()

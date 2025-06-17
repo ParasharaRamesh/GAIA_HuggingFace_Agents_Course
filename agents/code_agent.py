@@ -63,7 +63,7 @@ class CodeAgent:
             max_execution_time=300 # Max time for the agent to run in seconds
         )
 
-    def __call__(self, state: AgentState) -> Dict[str, Any]:
+    def __call__(self, state: AgentState) -> AgentState:
         """
         Executes the CodeAgent's task based on the current AgentState.
 
