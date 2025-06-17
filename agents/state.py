@@ -91,7 +91,7 @@ class AgentState(TypedDict):
             A detailed message populated by the active agent if it encounters a critical error
             during the execution of its `active_agent_task`. This signals a need for the Planner
             to potentially adjust the `active_agent_task`, provide more specific feedback,
-            or, if the error is unrecoverable for the current agent, route to the `generic_agent`.
+            or, if the error is unrecoverable for the current agent, route to the `final_agent`.
     """
     query: str
     file_path: Optional[str]

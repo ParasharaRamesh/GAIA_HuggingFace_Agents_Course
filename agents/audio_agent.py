@@ -67,7 +67,7 @@ class AudioAgent:
             verbose=False, # Set to True for detailed internal agent logs during development
             handle_parsing_errors=True,
             return_intermediate_steps=True, # Essential for extracting tool calls
-            # max_iterations=5 # Optional: Limit iterations if needed
+            max_iterations=5 # Optional: Limit iterations if needed
         )
 
     def __call__(self, state: AgentState) -> AgentState:

@@ -9,6 +9,7 @@ from langchain_core.agents import AgentFinish
 
 # Import tools from interpreter.py - make sure this path is correct relative to your project structure
 from tools.interpreter import read_file, write_file, run_shell_command, run_python_script
+from tools.search import web_search, web_scraper
 
 # Import AgentState and HistoryEntry from state.py - ensure state.py is accessible
 from .state import AgentState, HistoryEntry, HistoryEntryStatus
@@ -33,7 +34,9 @@ class CodeAgent:
             read_file,
             write_file,
             run_shell_command,
-            run_python_script
+            run_python_script,
+            web_search,
+            web_scraper
         ]
 
         # Construct the path to the ReAct prompt template
