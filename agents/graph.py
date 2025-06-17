@@ -55,11 +55,11 @@ workflow = StateGraph(AgentState)
 dummy_llm_instance = DummyLLM()
 
 planner_agent = PlannerAgent(llm=dummy_llm_instance)
-researcher_agent = ResearcherAgent(llm=dummy_llm_instance)
-audio_agent = AudioAgent(llm=dummy_llm_instance)
-code_agent = CodeAgent(llm=dummy_llm_instance)
-visual_agent = VisualAgent(llm=dummy_llm_instance)
 final_agent = FinalAgent(llm=dummy_llm_instance)
+visual_agent = VisualAgent(llm=dummy_llm_instance)
+code_agent = CodeAgent(llm=dummy_llm_instance)
+audio_agent = AudioAgent(llm=dummy_llm_instance)
+researcher_agent = ResearcherAgent(llm=dummy_llm_instance)
 
 
 # Add all nodes to the graph

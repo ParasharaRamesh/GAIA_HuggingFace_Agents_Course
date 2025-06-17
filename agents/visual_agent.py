@@ -5,10 +5,9 @@ from typing import Any, Dict, List, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-
-# Import AgentState and HistoryEntry from state.py
 from .state import AgentState, HistoryEntry, HistoryEntryStatus
 
+# For video/image analysis, Meta's V-JEPA2 looks promising but since this is deployed on a simple hugging face CPU space, this option is not feasible at the moment as the V-JEPA models requires GPU spaces!
 
 class VisualAgent:
     """

@@ -30,7 +30,6 @@ Agents workflow diagram refer to analysis/visualization.ipynb
 
 Thoughts/Potential TODOS:
 
-. make all agents ReACT agent so that they can act within themselves
 . can use vjepa and vjepa 2 for visual analysis tools
 . return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
 . use langfuse for debugging
