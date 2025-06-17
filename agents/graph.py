@@ -29,21 +29,29 @@ class DummyLLM:
 
 def route_from_planner(state: AgentState) -> str:
     """
-    Placeholder router for the Planner.
-    This logic will be filled in later. For now, it simply points to 'researcher' for visualization.
+    Routes based on the planner_agent's decision stored in active_agent_name.
     """
-    print("Routing logic: From Planner (empty logic). Directing to 'researcher'.")
-    return "researcher_agent" # Hardcoded for initial graph visualization
+    # The planner_agent's __call__ method should have already updated
+    # state.active_agent_name with its chosen next agent.
+    next_agent_name = state.get("active_agent_name") # Get the agent name decided by the planner
+
+    if next_agent_name:
+        print(f"Routing from Planner to: {next_agent_name}")
+        return next_agent_name
+    else:
+        # This case should ideally not happen if planner always sets active_agent_name
+        # Fallback to final_agent if the planner fails to specify
+        print("Error: Planner did not specify a next agent. Routing to final_agent.")
+        return "final_agent"
 
 
 def route_from_specialized_agent(state: AgentState) -> str:
     """
-    Placeholder router for specialized agents (Researcher, Audio, Code, Visual).
-    This logic will be filled in later for verification/re-planning.
-    For now, it simply points back to 'planner' for visualization.
+    Routes back to the planner_agent after a specialized agent has executed.
+    This ensures the Planner always regains control to review output and plan next steps.
     """
-    print("Routing logic: From Specialized Agent (empty logic). Directing to 'planner'.")
-    return "planner_agent" # Hardcoded for initial graph visualization
+    print(f"Routing from {state.get('active_agent_name', 'a specialized agent')} back to Planner for re-evaluation.")
+    return "planner_agent"
 
 
 # --- Build the LangGraph Workflow ---

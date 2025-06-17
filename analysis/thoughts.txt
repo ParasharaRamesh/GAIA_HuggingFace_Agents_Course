@@ -30,6 +30,7 @@ Agents workflow diagram refer to analysis/visualization.ipynb
 
 Thoughts/Potential TODOS:
 
+. will the planner guarantee that it can use code agent whenever it wants using the output of another agent?
 . can use vjepa and vjepa 2 for visual analysis tools
 . return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
 . use langfuse for debugging
