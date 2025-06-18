@@ -4,10 +4,7 @@ import os
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.agents import AgentFinish, AgentAction  # Keep AgentAction for internal agent parsing
-from langchain_core.messages import HumanMessage, AIMessage, \
-    ToolMessage  # Necessary for agent's internal thought process
+from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 # Import tools from tools/audio.py
 from tools.audio import transcribe_audio, get_youtube_transcript
@@ -38,18 +35,12 @@ def create_audio_agent(llm: BaseChatModel):
 
     react_prompt = ChatPromptTemplate.from_template(react_prompt_content)
 
-    # Create the ReAct agent executor directly
-    # The `create_react_agent` function returns a Runnable that can be used as a node.
-    # It takes care of the internal Thought-Action-Observation loop.
-    audio_agent_runnable = AgentExecutor(
-        agent=create_react_agent(
-            llm,
-            tools,
-            react_prompt
-        ),
+    audio_agent_runnable = create_react_agent(
+        model=llm,  # can be a string also
         tools=tools,
-        verbose=True,
-        handle_parsing_errors=True
+        prompt=react_prompt,
+        name="audio-agent",
+        debug=True
     )
 
     return audio_agent_runnable

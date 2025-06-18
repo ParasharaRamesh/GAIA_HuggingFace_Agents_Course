@@ -1,15 +1,70 @@
-# agents/visual_agent.py
-
 import os
+from typing import List
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
-from langchain.agents import create_react_agent, AgentExecutor
+from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
-# Import the new image tool
-from tools.image_tools import read_image_and_encode
-# Also import any other tools it might need later, though for now it's just image_tools
+from tools.visual import read_image_and_encode
+
+
+# Logic to format messages for multimodal LLM understanding
+# This function will be used as a pre_model_hook to modify messages
+# before they are sent to the LLM during the agent's internal thought process.
+def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[BaseMessage]:
+    """
+    Analyzes the message history, specifically looking for ToolMessage outputs
+    that contain Base64 encoded image data. If found, it injects a new
+    HumanMessage that explicitly includes this image data in a multimodal format
+    (image_url type), so that the multimodal LLM can correctly "see" and
+    process the image. This ensures the LLM interprets the image visually
+    rather than as a plain text string.
+
+    This hook helps bridge the gap between tool output (plain string) and
+    multimodal LLM input requirements (structured image data).
+
+    Args:
+        messages (List[BaseMessage]): The current list of messages in the agent's state.
+
+    Returns:
+        List[BaseMessage]: The potentially modified list of messages, with Base64
+                          image outputs from tools formatted as multimodal content.
+    """
+    formatted_messages = []
+    # Keep track if we've added an image for the current tool observation
+    image_added_for_last_tool_observation = False
+
+    for i, msg in enumerate(messages):
+        # Add the original message first
+        formatted_messages.append(msg)
+
+        # Check if the current message is a ToolMessage from our image tool
+        if isinstance(msg, ToolMessage) and msg.name == "read_image_and_encode":
+            base64_image_data = msg.content
+            # Check if the content looks like a data URI (our tool's output format)
+            if base64_image_data.startswith("data:image/"):
+                # If it's a valid Base64 image, inject a new HumanMessage
+                # to represent this image as visual input to the LLM.
+                # We place this *after* the ToolMessage, so the LLM sees the tool output
+                # (the raw base64 string) and then the visual representation of that string.
+                formatted_messages.append(
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": f"Image Observation from '{msg.name}' tool:"},
+                            {"type": "image_url", "image_url": {"url": base64_image_data}}
+                        ]
+                    )
+                )
+                image_added_for_last_tool_observation = True
+            else:
+                # If the tool returned an error or non-image string, don't format it as an image.
+                # The LLM will process the plain text error message.
+                image_added_for_last_tool_observation = False
+        else:
+            image_added_for_last_tool_observation = False
+    return formatted_messages
+
 
 def create_visual_agent(llm: BaseChatModel):
     """
@@ -44,69 +99,13 @@ def create_visual_agent(llm: BaseChatModel):
     visual_prompt = ChatPromptTemplate.from_template(visual_prompt_content)
 
     # Create the ReAct agent
-    # The LLM here must be a multimodal LLM to understand the Base64 image data
-    # that will be returned by the 'read_image_and_encode' tool.
-    base_agent_executor = AgentExecutor(
-        agent=create_react_agent(llm, tools, visual_prompt),
+    base_agent_executor = create_react_agent(
+        model=llm,
         tools=tools,
-        verbose=True,
-        handle_parsing_errors=True
+        prompt=visual_prompt,
+        name="visual-agent",
+        debug=True,
+        pre_model_hook=_format_messages_for_multimodal_llm
     )
 
-    # We need a custom runnable to handle the agent's output.
-    # When the agent decides to use the read_image_and_encode tool,
-    # its output will contain ToolCall and then ToolMessage.
-    # If the tool successfully returns base64 data, we need to ensure this
-    # base64 data is formatted as a proper multimodal content block for the LLM
-    # in the subsequent turns.
-
-    # This is a critical adjustment for agents that generate multimodal content via tools.
-    # The output of a ToolMessage is a string (the base64 data). We need to transform
-    # the messages in the state to include this as an image_url type when sending back
-    # to the LLM for reasoning.
-
-    def _format_messages_for_multimodal_llm(messages: list[BaseMessage]) -> list[BaseMessage]:
-        formatted_messages = []
-        for msg in messages:
-            if isinstance(msg, ToolMessage) and msg.name == "read_image_and_encode":
-                # The content of this ToolMessage is the base64 string
-                base64_image_data = msg.content
-                # Assume the format is always data:image/<type>;base64,... as returned by the tool
-                if base64_image_data.startswith("data:image/"):
-                    formatted_messages.append(HumanMessage(
-                        content=[
-                            {"type": "text", "text": f"Observation from {msg.name} tool:"},
-                            {"type": "image_url", "image_url": {"url": base64_image_data}}
-                        ]
-                    ))
-                else:
-                    # If tool returned an error or non-image string
-                    formatted_messages.append(msg)
-            else:
-                formatted_messages.append(msg)
-        return formatted_messages
-
-    visual_agent_runnable = (
-        RunnablePassthrough.assign(
-            # 'input' still takes the last human message for the prompt
-            input=lambda state: (
-                next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
-                if state.get("messages") else ""
-            )
-        )
-        # We invoke the base agent executor. Its internal LLM will get the messages with images.
-        | base_agent_executor.with_config(
-            run_name="VisualAgentExecutor" # Optional: for better tracing
-        )
-        # Post-processing: We need to ensure the final output (messages from the agent)
-        # handles the multimodal content correctly for the graph state.
-        # LangGraph typically takes the last AI message from the agent.
-        # This part might need further refinement based on specific LangGraph AgentState updates.
-        # For now, base_agent_executor output messages are usually fine,
-        # but if images are part of the 'observations' that need to be fed back,
-        # the _format_messages_for_multimodal_llm would be integrated into the loop.
-        # For simplicity, we assume the AgentExecutor handles this internally now
-        # by passing raw messages to LLM and just returning final AI message.
-    )
-
-    return base_agent_executor # Return the AgentExecutor directly for simplicity in the graph node
+    return base_agent_executor

@@ -3,8 +3,7 @@
 import os
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.agents import AgentFinish
+from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 # Import tools: web_search and web_scraper from tools/search.py
 from tools.search import web_search, web_scraper
@@ -42,11 +41,12 @@ def create_generic_agent(llm: BaseChatModel):
 
     react_prompt = ChatPromptTemplate.from_template(react_prompt_content)
 
-    generic_agent_runnable = AgentExecutor(
-        agent=create_react_agent(llm, tools, react_prompt),
+    generic_agent_runnable = create_react_agent(
+        model=llm,
         tools=tools,
-        verbose=True,
-        handle_parsing_errors=True
+        prompt=react_prompt,
+        name="generic-agent",
+        debug=True
     )
 
     return generic_agent_runnable
