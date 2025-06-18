@@ -1,6 +1,7 @@
 gradio
 requests
 langchain
+langfuse
 langgraph-supervisor
 langchain-community
 langchain-core

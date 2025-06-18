@@ -1,14 +1,20 @@
 import os
 import gradio as gr
 import requests
-import inspect
 import pandas as pd
 import re
 import mimetypes
 import json
 import uuid
 
+from langchain_core.messages import HumanMessage, AIMessage
+
 from tools.audio import model # this triggers the whisper model to be loaded
+from dotenv import load_dotenv
+from agents.orchestrator import create_master_orchestrator_workflow
+from agents.state import AgentState
+from langfuse.langchain import CallbackHandler #
+
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -26,20 +32,96 @@ with open('expected_answers.json', 'r', encoding='utf-8') as f:
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
 class BasicAgent:
     def __init__(self):
-        print("BasicAgent initialized.")
+        print("BasicAgent initializing with LLMs and workflow...")
+        # Load environment variables (ensure .env file is present or keys are set globally)
+        load_dotenv()
 
-    #TODO.x need to essentially concatenate the path in the question itself so that the context is present
+        self.langfuse_handler = CallbackHandler()
+        print("Langfuse callback handler initialized.")
+
+        try:
+            #TODO.x change the LLMs later on to free stuff
+            # Orchestrator LLM (for high-level planning and reasoning)
+            self.orchestrator_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            # Visual LLM (for multimodal capabilities, e.g., image analysis)
+            self.visual_llm = ChatOpenAI(model="gpt-4o", temperature=0) # gpt-4o supports vision. Or ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest")
+            # Audio LLM (can be a standard text model if transcription is tool-based)
+            self.audio_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            # Researcher LLM (for web search reasoning)
+            self.researcher_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            # Interpreter LLM (for code generation and execution)
+            self.interpreter_llm = ChatAnthropic(model="claude-3-sonnet-20240229", temperature=0) # Example: Anthropic
+            # Generic LLM (for fallback and general tasks)
+            self.generic_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            print("LLMs initialized.")
+        except Exception as e:
+            print(f"Error initializing LLMs. Ensure API keys are set: {e}")
+            # You might want to raise the exception or handle it more gracefully
+            raise
+
+        # --- Create the Master Orchestrator Workflow ---
+        print("Creating master orchestrator workflow...")
+        orchestrator_compiled_app = create_master_orchestrator_workflow(
+            orchestrator_llm=self.orchestrator_llm,
+            visual_llm=self.visual_llm,
+            audio_llm=self.audio_llm,
+            researcher_llm=self.researcher_llm,
+            interpreter_llm=self.interpreter_llm,
+            generic_llm=self.generic_llm,
+        ).compile()
+
+        self.orchestrator_app = orchestrator_compiled_app.with_config(
+            {"callbacks": [self.langfuse_handler]}
+        )
+
+        print("Master orchestrator workflow created and Langfuse callback configured.")
+        print("Master orchestrator workflow created.")
+
     def __call__(self, question: str, path: str | None) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}")
-        query = f"Question: {question}"
+        print(f"Path: {path}")
+
+        # Combine question and path into the initial HumanMessage for the orchestrator
+        # The orchestrator will then delegate based on this combined input.
+        full_input_content = question
         if path:
-            print(f"Question requires file present at path: {path}")
-            query = f"{query}|FilePath: {path}"
+            # If a path is provided, embed it in the message for relevant agents
+            # e.g., "Analyze the image located at path/to/image.png: [original question]"
+            full_input_content = f"The query relates to a file at '{path}'. Please incorporate this context. Original query: {question}"
 
+        initial_state: AgentState = { # Explicitly type as AgentState
+            "query": full_input_content, # The overall query
+            "messages": [HumanMessage(content=full_input_content)], # Initial message to the orchestrator
+            "final_answer": None # Initialize final_answer
+        }
 
-        fixed_answer = "This is a default answer."
-        print(f"Agent returning fixed answer: {fixed_answer}")
-        return fixed_answer
+        print(f"\n--- Running orchestrator workflow for: '{full_input_content}' ---")
+
+        try:
+            # Invoke the workflow. We are using .invoke() here for simplicity
+            # For streaming or more detailed progress, you might iterate over .stream()
+            final_state: AgentState = self.orchestrator_app.invoke(initial_state)
+
+            # Extract the final answer from the state
+            if final_state.get("final_answer"):
+                print(f"\n--- Orchestrator Final Answer ---")
+                return final_state["final_answer"]
+            else:
+                print("\n--- Orchestrator completed, but no explicit 'final_answer' was extracted. ---")
+                # Fallback: Return the content of the last AI message if no specific final_answer was set
+                if final_state.get("messages"):
+                    last_message = final_state["messages"][-1]
+                    if isinstance(last_message, AIMessage):
+                        return last_message.content
+                return "Workflow completed, but no clear answer was found."
+
+        except Exception as e:
+            print(f"Error during workflow execution: {e}")
+            return f"An error occurred while processing your request: {e}"
+        finally:
+            print("Flushing Langfuse traces...")
+            self.langfuse_handler.langfuse.flush()
+            print("Langfuse traces flushed.")
 
 
 # Helper methods
