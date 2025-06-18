@@ -1,8 +1,10 @@
+import base64
 import os
-from yt_dlp import YoutubeDL
+from langchain_core.tools import tool
 
-#TODO.x make this a tool?
-#TODO.x any leight weight LLM which can do inference on videos/images directly so that I can make that into a seperate agent
+'''
+# Can use V-JEPA2 for doing video analysis but not implementing it due to lack of GPU
+from yt_dlp import YoutubeDL
 
 def download_youtube_video(youtube_url: str, video_id: str) -> str:
     """
@@ -29,8 +31,41 @@ def download_youtube_video(youtube_url: str, video_id: str) -> str:
 
     # Return only the filename
     return f"{video_id}.mp4"
+'''
 
-if __name__ == '__main__':
-    url = "https://www.youtube.com/watch?v=1htKBjuUWec"
-    id = "1htKBjuUWec"
-    print(download_youtube_video(url, id))
+@tool
+def read_image_and_encode(file_path: str) -> str:
+    """
+    Reads an image file from the specified local path, encodes it to Base64,
+    and returns the Base64 string prefixed with the appropriate data URI.
+
+    Args:
+        file_path (str): The full path to the image file (e.g., 'image.png').
+
+    Returns:
+        str: A data URI string (e.g., 'data:image/png;base64,...')
+             containing the Base64 encoded image, suitable for multimodal LLMs.
+             Returns an error message if the file cannot be read or is not found.
+    """
+    if not os.path.exists(file_path):
+        return f"Error: File not found at {file_path}"
+    if not os.path.isfile(file_path):
+        return f"Error: Not a file at {file_path}"
+
+    try:
+        # Determine MIME type based on extension (basic approach, could be more robust)
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == ".png":
+            mime_type = "image/png"
+        elif ext == ".jpg" or ext == ".jpeg":
+            mime_type = "image/jpeg"
+        elif ext == ".gif":
+            mime_type = "image/gif"
+        else:
+            return f"Error: Unsupported image format for {file_path}. Supported: .png, .jpg/.jpeg, .gif"
+
+        with open(file_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        return f"data:{mime_type};base64,{encoded_string}"
+    except Exception as e:
+        return f"Error reading or encoding image file {file_path}: {e}"

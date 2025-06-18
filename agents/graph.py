@@ -14,7 +14,7 @@ from .researcher_agent import ResearcherAgent
 from .planner_agent import PlannerAgent
 from .visual_agent import VisualAgent
 from .audio_agent import AudioAgent
-from .final_agent import FinalAgent
+from .generic_agent import FinalAgent
 from .code_agent import CodeAgent
 
 # Dummy LLM for instantiation (replace with your actual LLM, e.g., OpenAI, Gemini)

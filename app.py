@@ -28,10 +28,14 @@ class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
 
+    #TODO.x need to essentially concatenate the path in the question itself so that the context is present
     def __call__(self, question: str, path: str | None) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}")
+        query = f"Question: {question}"
         if path:
             print(f"Question requires file present at path: {path}")
+            query = f"{query}|FilePath: {path}"
+
 
         fixed_answer = "This is a default answer."
         print(f"Agent returning fixed answer: {fixed_answer}")

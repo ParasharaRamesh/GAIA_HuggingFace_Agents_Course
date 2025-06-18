@@ -1,143 +1,112 @@
-import os
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+# agents/visual_agent.py
 
+import os
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
-from .state import AgentState, HistoryEntry, HistoryEntryStatus
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
+from langchain.agents import create_react_agent, AgentExecutor
 
-# For video/image analysis, Meta's V-JEPA2 looks promising but since this is deployed on a simple hugging face CPU space, this option is not feasible at the moment as the V-JEPA models requires GPU spaces!
+# Import the new image tool
+from tools.image_tools import read_image_and_encode
+# Also import any other tools it might need later, though for now it's just image_tools
 
-class VisualAgent:
+def create_visual_agent(llm: BaseChatModel):
     """
-    Agent responsible for analyzing images in conjunction with textual queries.
-    It takes an image file path (if provided in state) and a textual task/query,
-    then uses a multimodal LLM to provide an answer.
-
-    Crucially, if asked about video *visuals*, it will hallucinate an answer.
-    For video *speech*, it relies on pre-transcribed text provided by the Planner.
+    Creates and returns a LangChain Runnable for visual analysis.
+    This agent is a ReAct agent that can use tools, specifically
+    'read_image_and_encode', to process local image files.
+    The underlying LLM must be multimodal (e.g., V-JEPA2 with GPU, GPT-4o, Gemini 1.5 Pro)
+    to interpret the Base64 image data after it's read by the tool.
     """
+    # Define the tools this agent can use
+    tools = [read_image_and_encode]
 
-    def __init__(self, llm: BaseChatModel):
-        """
-        Initializes the VisualAgent with a multimodal LLM.
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    prompts_dir = os.path.join(current_dir, '..', 'prompts')
+    visual_agent_prompt_path = os.path.join(prompts_dir, 'visual_agent_prompt.txt')
 
-        Args:
-            llm (BaseChatModel): The multimodal language model capable of processing
-                                 both text and image inputs (e.g., Google Gemini Pro Vision).
-        """
-        self.llm = llm
-
-        # Construct the path to the Visual Agent's prompt template
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        prompts_dir = os.path.join(current_dir, '..', 'prompts')
-        self.visual_agent_prompt_path = os.path.join(prompts_dir, 'visual_agent_prompt.txt')
-
-    def __call__(self, state: AgentState) ->AgentState:
-        """
-        Executes the VisualAgent's task based on the current AgentState.
-
-        Args:
-            state (AgentState): The current state of the multi-agent system.
-
-        Returns:
-            Dict[str, Any]: The updated AgentState after the VisualAgent's execution.
-        """
-        task_for_visual_agent = state["active_agent_task"]
-        query = state["query"]
-        history_entries = state["history"]
-        image_file_path = state.get("file_path")  # Get file_path, which might be an image
-
-        # Create a mutable copy of the state to update
-        new_state = state.copy()
-        new_state["active_agent_name"] = "VisualAgent"
-        new_state["active_agent_output"] = None
-        new_state["active_agent_error_message"] = None
-
-        # Load the prompt template
-        with open(self.visual_agent_prompt_path, "r", encoding="utf-8") as f:
-            prompt_template_str = f.read()
-
-        # Format the prompt with current state information
-        formatted_prompt = prompt_template_str.format(
-            current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            query=query,
-            active_agent_task=task_for_visual_agent,
-            image_path=image_file_path if image_file_path else "No image provided.",
-            history=self._format_history(history_entries)
+    visual_prompt_content = ""
+    try:
+        with open(visual_agent_prompt_path, "r", encoding="utf-8") as f:
+            visual_prompt_content = f.read()
+    except FileNotFoundError:
+        print(f"Error: Prompt file not found at {visual_agent_prompt_path}")
+        # Fallback to a default ReAct prompt if file not found
+        visual_prompt_content = (
+            "You are an expert Visual Analysis AI. You have access to tools.\n\n"
+            "Your Goal: Analyze visual content. If a local file path is mentioned (e.g., image.png), "
+            "use the 'read_image_and_encode' tool first.\n\n"
+            "Available Tools:\n{tools}\n\nTool Names:\n{tool_names}\n\n"
+            "Begin!\n\nHuman Input: {input}\nThought:{agent_scratchpad}"
         )
 
-        # Prepare multimodal input for the LLM
-        messages = [SystemMessage(content=formatted_prompt)]
+    visual_prompt = ChatPromptTemplate.from_template(visual_prompt_content)
 
-        # If an image file path is provided, add it to the HumanMessage content
-        human_message_content = []
-        human_message_content.append({"type": "text", "text": f"Task: {task_for_visual_agent}"})
-        if image_file_path:
-            # Ensure the file path is accessible by the LLM (e.g., as a local file URL)
-            # This assumes the LLM provider can access local file paths directly or via an integration.
-            # For cloud-based LLMs, this might require uploading the image to a temporary URL.
-            # For local execution with models like Llama.cpp, direct paths often work.
-            # Assuming LangChain handles conversion for supported LLMs like Gemini.
-            human_message_content.append(
-                {"type": "image_url", "image_url": {"url": f"file://{os.path.abspath(image_file_path)}"}})
+    # Create the ReAct agent
+    # The LLM here must be a multimodal LLM to understand the Base64 image data
+    # that will be returned by the 'read_image_and_encode' tool.
+    base_agent_executor = AgentExecutor(
+        agent=create_react_agent(llm, tools, visual_prompt),
+        tools=tools,
+        verbose=True,
+        handle_parsing_errors=True
+    )
 
-        messages.append(HumanMessage(content=human_message_content))
+    # We need a custom runnable to handle the agent's output.
+    # When the agent decides to use the read_image_and_encode tool,
+    # its output will contain ToolCall and then ToolMessage.
+    # If the tool successfully returns base64 data, we need to ensure this
+    # base64 data is formatted as a proper multimodal content block for the LLM
+    # in the subsequent turns.
 
-        agent_output = None
-        error_message = None
-        status = HistoryEntryStatus.IN_PROGRESS
+    # This is a critical adjustment for agents that generate multimodal content via tools.
+    # The output of a ToolMessage is a string (the base64 data). We need to transform
+    # the messages in the state to include this as an image_url type when sending back
+    # to the LLM for reasoning.
 
-        try:
-            # Invoke the multimodal LLM
-            llm_response = self.llm.invoke(messages)
-            agent_output = llm_response.content
-            status = HistoryEntryStatus.SUCCESS
+    def _format_messages_for_multimodal_llm(messages: list[BaseMessage]) -> list[BaseMessage]:
+        formatted_messages = []
+        for msg in messages:
+            if isinstance(msg, ToolMessage) and msg.name == "read_image_and_encode":
+                # The content of this ToolMessage is the base64 string
+                base64_image_data = msg.content
+                # Assume the format is always data:image/<type>;base64,... as returned by the tool
+                if base64_image_data.startswith("data:image/"):
+                    formatted_messages.append(HumanMessage(
+                        content=[
+                            {"type": "text", "text": f"Observation from {msg.name} tool:"},
+                            {"type": "image_url", "image_url": {"url": base64_image_data}}
+                        ]
+                    ))
+                else:
+                    # If tool returned an error or non-image string
+                    formatted_messages.append(msg)
+            else:
+                formatted_messages.append(msg)
+        return formatted_messages
 
-        except Exception as e:
-            error_message = str(e)
-            status = HistoryEntryStatus.FAILED
-            print(f"[VisualAgent.call]: LLM invocation error: {e}")
+    visual_agent_runnable = (
+        RunnablePassthrough.assign(
+            # 'input' still takes the last human message for the prompt
+            input=lambda state: (
+                next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+                if state.get("messages") else ""
+            )
+        )
+        # We invoke the base agent executor. Its internal LLM will get the messages with images.
+        | base_agent_executor.with_config(
+            run_name="VisualAgentExecutor" # Optional: for better tracing
+        )
+        # Post-processing: We need to ensure the final output (messages from the agent)
+        # handles the multimodal content correctly for the graph state.
+        # LangGraph typically takes the last AI message from the agent.
+        # This part might need further refinement based on specific LangGraph AgentState updates.
+        # For now, base_agent_executor output messages are usually fine,
+        # but if images are part of the 'observations' that need to be fed back,
+        # the _format_messages_for_multimodal_llm would be integrated into the loop.
+        # For simplicity, we assume the AgentExecutor handles this internally now
+        # by passing raw messages to LLM and just returning final AI message.
+    )
 
-        new_state["active_agent_output"] = agent_output
-        new_state["active_agent_error_message"] = error_message
-
-        new_state["history"].append(HistoryEntry(
-            agent_name="VisualAgent",
-            timestamp=datetime.now().isoformat(),
-            input={
-                "task_for_visual_agent": task_for_visual_agent,
-                "query": query,
-                "image_file_path": image_file_path
-            },
-            output=agent_output,
-            status=status,
-            tool_calls=[],  # VisualAgent does not make tool calls directly
-            error=error_message
-        ))
-
-        # If the agent produces a "Final Answer", populate the final_answer field.
-        if agent_output and isinstance(agent_output, str) and agent_output.strip().startswith("Final Answer:"):
-            new_state["final_answer"] = agent_output.replace("Final Answer:", "").strip()
-
-        return new_state
-
-    def _format_history(self, history_entries: List[HistoryEntry]) -> str:
-        """
-        Helper method to format a list of history entries into a readable string
-        for the LLM, providing context of previous interactions.
-        """
-        formatted_history = []
-        for entry in history_entries:
-            formatted_history.append(f"--- History Entry for {entry['agent_name']} ---")
-            formatted_history.append(f"Timestamp: {entry['timestamp']}")
-            formatted_history.append(f"Status: {entry['status']}")
-            formatted_history.append(f"Input Task: {entry['input'].get('task_for_visual_agent', 'N/A')}")
-            formatted_history.append(f"Output: {entry['output']}")
-            if entry['error']:
-                formatted_history.append(f"Error: {entry['error']}")
-            formatted_history.append("--------------------")
-        if not formatted_history:
-            return "No previous history."
-        return "\n".join(formatted_history)
+    return base_agent_executor # Return the AgentExecutor directly for simplicity in the graph node
