@@ -1,6 +1,7 @@
 gradio
 requests
 langchain
+langgraph-supervisor
 langchain-community
 langchain-core
 langchain-huggingface

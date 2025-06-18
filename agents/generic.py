@@ -19,7 +19,7 @@ def create_generic_agent(llm: BaseChatModel):
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     prompts_dir = os.path.join(current_dir, '..', 'prompts')
-    generic_react_prompt_path = os.path.join(prompts_dir, 'generic_agent_react_prompt.txt')
+    generic_react_prompt_path = os.path.join(prompts_dir, 'generic_react_prompt.txt')
 
     react_prompt_content = ""
     try:
