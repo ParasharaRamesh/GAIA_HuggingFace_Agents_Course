@@ -107,7 +107,7 @@ def create_visual_agent(llm: BaseChatModel):
         model=llm,
         tools=tools,
         prompt=visual_prompt,
-        name="visual_expert",
+        name="visual",
         debug=True,
         state_schema=AgentState,
         pre_model_hook=_format_messages_for_multimodal_llm

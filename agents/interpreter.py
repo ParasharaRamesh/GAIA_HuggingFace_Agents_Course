@@ -68,7 +68,7 @@ def create_code_agent(llm: BaseChatModel):
         model=llm,
         tools=tools,
         prompt=react_prompt,
-        name="code_expert",  # Ensure consistent naming
+        name="code",
         debug=True,
         state_schema=AgentState
     )

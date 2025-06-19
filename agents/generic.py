@@ -79,7 +79,7 @@ def create_generic_agent(llm: BaseChatModel):
         model=llm,
         tools=tools,
         prompt=react_prompt,
-        name="generic-agent",
+        name="generic",
         debug=True,
         state_schema=AgentState
     )

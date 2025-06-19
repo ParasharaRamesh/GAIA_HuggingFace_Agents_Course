@@ -106,12 +106,12 @@ def wikipedia_search(query: str, load_max_docs: int = 3) -> Dict[str, List[Dict[
 
 
 @tool
-def web_scraper(urls: Union[str, List[str]]) -> Dict[str, Dict[str, Any]]:
+def web_scraper(urls: List[str]) -> Dict[str, Dict[str, Any]]:
     """
     Scrape full HTML content from one or more URLs.
 
     Args:
-        urls: A single URL string or a list of URL strings to scrape.
+        urls: A list of URL strings to scrape.
 
     Returns:
         A dictionary where each key is a URL string.
@@ -120,11 +120,9 @@ def web_scraper(urls: Union[str, List[str]]) -> Dict[str, Dict[str, Any]]:
         - 'metadata': A dictionary of various metadata associated with the page,
                       which may include 'source', 'title', 'language', etc. (Dict[str, Any]).
     """
-    # Ensure URLs is a list
-    url_list = [urls] if isinstance(urls, str) else urls
 
     loader = WebBaseLoader(
-        web_path=url_list,
+        web_path=urls,
         continue_on_failure=True,
         default_parser="html.parser"
     )

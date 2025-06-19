@@ -63,7 +63,7 @@ def create_audio_agent(llm: BaseChatModel):
         model=llm,
         tools=tools,
         prompt=react_prompt,
-        name="audio_expert",  # Ensure consistent naming
+        name="audio",  # Ensure consistent naming
         debug=True,
         state_schema=AgentState
     )

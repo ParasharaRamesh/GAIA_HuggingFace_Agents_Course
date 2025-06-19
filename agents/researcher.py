@@ -60,7 +60,7 @@ def create_researcher_agent(llm: BaseChatModel):
         model=llm,
         tools=tools,
         prompt=react_prompt,
-        name="research_expert",  # Ensure consistent naming
+        name="research",  # Ensure consistent naming
         debug=True,
         state_schema=AgentState
     )
