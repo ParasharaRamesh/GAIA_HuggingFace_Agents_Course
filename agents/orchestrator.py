@@ -1,4 +1,5 @@
 import os
+import re
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
@@ -34,14 +35,15 @@ def extract_final_answer_hook(state: AgentState) -> dict:
 
     if isinstance(last_message, AIMessage):
         content = last_message.content
-        # Check if the content starts with the "Final Answer:" tag (case-insensitive and trimmed)
-        if content and content.strip().lower().startswith("final answer:"):
-            # Extract the actual answer part
-            final_answer_content = content.strip()[len("final answer:"):].strip()
-            print(f"DEBUG: Final answer extracted by hook: {final_answer_content}") # For debugging
-            return {"final_answer": final_answer_content} # Return the update for the 'final_answer' field
-    return {} # No update if "Final Answer" not found or last message is not an AIMessage
-
+        if content:
+            # Use regex to find "Final Answer:" (case-insensitive) anywhere in the content
+            # and capture everything after it. re.DOTALL makes '.' match newlines too.
+            match = re.search(r"final answer:(.*)", content, re.IGNORECASE | re.DOTALL)
+            if match:
+                final_answer_content = match.group(1).strip()
+                print(f"DEBUG: Final answer extracted by hook: {final_answer_content}") # For debugging
+                return {"final_answer": final_answer_content} # Return the update for the 'final_answer' field
+    return {} # No updat
 
 def create_master_orchestrator_workflow(
     orchestrator_llm: BaseChatModel,
