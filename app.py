@@ -7,12 +7,17 @@ import mimetypes
 import json
 import uuid
 from langchain_core.messages import HumanMessage, AIMessage
-
+from langfuse import get_client
 from agents.workflow import create_worfklow
 from tools.audio import model # this triggers the whisper model to be loaded
 from agents.state import AgentState
 from langfuse.langchain import CallbackHandler #
 
+'''
+TODO.x
+1. keep a global agent variable?
+
+'''
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -30,7 +35,7 @@ with open('expected_answers.json', 'r', encoding='utf-8') as f:
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
 class BasicAgent:
     def __init__(self):
-        print("BasicAgent initializing with LLMs and workflow...")
+        print("\nBasicAgent initializing with LLMs and workflow...")
 
         self.langfuse_handler = CallbackHandler()
         print("Langfuse callback handler initialized.")
@@ -41,19 +46,19 @@ class BasicAgent:
         self.orchestrator_app = orchestrator_compiled_app.with_config(
             {"callbacks": [self.langfuse_handler]}
         )
-        print("Langfuse callback handler created.")
+        print("Langfuse callback handler created.\n")
+        print("-"*60)
+        print()
 
     def __call__(self, question: str, path: str | None) -> str:
-        print(f"Agent received question (first 50 chars): {question[:50]}")
+        print(f"\nAgent received question (first 50 chars): {question[:50]}")
         print(f"Path: {path}")
 
-        # Combine question and path into the initial HumanMessage for the orchestrator
         # The orchestrator will then delegate based on this combined input.
         full_input_content = question
         if path:
-            # If a path is provided, embed it in the message for relevant agents
-            # e.g., "Analyze the image located at path/to/image.png: [original question]"
-            full_input_content = f"The query relates to a file at '{path}'. Please incorporate this context. Original query: {question}"
+            # If a path is provided, embed it in the message for relevant agents e.g., "Analyze the image located at path/to/image.png: [original question]"
+            full_input_content = f"Original query: {question} | Associated file path: {path}"
 
         initial_state: AgentState = { # Explicitly type as AgentState
             "query": full_input_content, # The overall query
@@ -86,7 +91,7 @@ class BasicAgent:
             return f"An error occurred while processing your request: {e}"
         finally:
             print("Flushing Langfuse traces...")
-            self.langfuse_handler.langfuse.flush()
+            get_client().flush()
             print("Langfuse traces flushed.")
 
 
@@ -415,8 +420,10 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     if profile:
         username = f"{profile.username}"
         print(f"User logged in: {username}\n")
+        print("-" * 60)
     else:
         print("User not logged in.")
+        print("-" * 60)
         return "Please Login to Hugging Face with the button.", None
 
     # 0.  Determine HF Space Runtime URL and Repo URL

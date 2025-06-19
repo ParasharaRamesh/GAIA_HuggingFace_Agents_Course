@@ -23,6 +23,7 @@ openai-whisper
 setuptools-rust
 torch
 numba
+pandas
 yt_dlp
 IPython
 Pillow

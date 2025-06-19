@@ -6,7 +6,6 @@ from langchain_huggingface.chat_models import ChatHuggingFace
 
 from agents.orchestrator import create_master_orchestrator_workflow
 from langchain.chat_models import init_chat_model
-from langchain_community.llms import HuggingFaceEndpoint  # For HF models
 from langchain_openai import ChatOpenAI  # For OpenRouter (using OpenAI compatible API)
 from langchain_groq import ChatGroq  # For Groq
 
@@ -22,8 +21,9 @@ def _try_init_llm(provider: str, model_id: str, **kwargs) -> BaseChatModel | Non
     Attempts to instantiate an LLM using init_chat_model for a given provider and model.
     Handles API key retrieval and prints success/failure messages.
     """
+    print(f"using init llm method: {model_id} @ {provider}")
     api_key_env_var = ""
-    if provider == "huggingface":
+    if provider == "huggingface": #This doesnt work
         api_key_env_var = "HF_TOKEN"
     elif provider == "openai" or provider == "openrouter":  # OpenRouter uses 'openai' provider string
         api_key_env_var = "OPENROUTER_API_KEY"
@@ -58,8 +58,12 @@ def _try_init_llm(provider: str, model_id: str, **kwargs) -> BaseChatModel | Non
         return None
 
 
-def _create_hf_llm(model_id: str) -> BaseChatModel | None:
+def _create_hf_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel | None:
     """Attempts to instantiate a ChatHuggingFace LLM that supports bind_tools."""
+    if use_init_llm:
+        # this doesnt work!
+        return _try_init_llm("huggingface", model_id)
+
     hf_token = os.getenv("HF_TOKEN")  # Or HUGGINGFACEHUB_API_TOKEN
     if not hf_token:
         print("HF_TOKEN not found for HuggingFace LLM.")
@@ -67,7 +71,6 @@ def _create_hf_llm(model_id: str) -> BaseChatModel | None:
     try:
         llm_hub = HuggingFaceHub(
             repo_id=model_id,
-            # Parameters like temperature and max_new_tokens are passed via model_kwargs for HuggingFaceHub
             model_kwargs={"temperature": 0.3, "max_new_tokens": 512},
             huggingfacehub_api_token=hf_token
         )
@@ -81,8 +84,12 @@ def _create_hf_llm(model_id: str) -> BaseChatModel | None:
         return None
 
 
-def _create_openrouter_llm(model_id: str) -> BaseChatModel | None:
+def _create_openrouter_llm(model_id: str, use_init_llm: bool = True) -> BaseChatModel | None:
     """Attempts to instantiate an OpenRouter LLM using ChatOpenAI."""
+    if use_init_llm:
+        return _try_init_llm("openrouter", model_id)
+
+    # alternative method
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if not openrouter_key:
         print("OPENROUTER_API_KEY not found for OpenRouter LLM.")
@@ -102,7 +109,11 @@ def _create_openrouter_llm(model_id: str) -> BaseChatModel | None:
         return None
 
 
-def _create_groq_llm(model_id: str) -> BaseChatModel | None:
+def _create_groq_llm(model_id: str, use_init_llm: bool = True) -> BaseChatModel | None:
+    if use_init_llm:
+        return _try_init_llm("groq", model_id)
+
+    # alternative method
     """Attempts to instantiate a Groq LLM."""
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key:
@@ -127,14 +138,17 @@ def create_orchestrator_llm():
     # Try HuggingFace first
     llm = _create_hf_llm("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
     if llm: return llm
+    print("~"*60)
 
     # Then OpenRouter
     llm = _create_openrouter_llm("deepseek/deepseek-r1-distill-qwen-14b:free")
     if llm: return llm
+    print("~"*60)
 
     # Finally Groq
     llm = _create_groq_llm("deepseek-r1-distill-llama-70b")
     if llm: return llm
+    print("~"*60)
 
     raise ValueError("Failed to instantiate Orchestrator LLM from any provider.")
 
@@ -144,12 +158,14 @@ def create_visual_llm():
     llm = _create_hf_llm(
         "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
     if llm: return llm
+    print("~"*60)
 
     # OpenRouter (often has access to multi-modal models)
     llm = _create_openrouter_llm(
         "meta-llama/llama-3.2-11b-vision-instruct:free")  # Example, check OpenRouter's list for actual ID
     # google/gemma-3-27b-it:free also works
     if llm: return llm
+    print("~"*60)
 
     # Fallback if no multi-modal found: a generic LLM (won't handle images directly)
     print("Warning: No multi-modal LLM found for Visual Agent. Falling back to generic LLM.")
@@ -160,14 +176,17 @@ def create_audio_llm():
     # HuggingFace
     llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
     if llm: return llm
+    print("~"*60)
 
     # OpenRouter
     llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
     if llm: return llm
+    print("~"*60)
 
     # Groq
     llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
     if llm: return llm
+    print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
@@ -177,14 +196,17 @@ def create_researcher_llm():
     # HuggingFace
     llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
     if llm: return llm
+    print("~"*60)
 
     # OpenRouter
     llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
     if llm: return llm
+    print("~"*60)
 
     # Groq
     llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
     if llm: return llm
+    print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
@@ -194,14 +216,17 @@ def create_interpreter_llm():
     # Prioritize HuggingFace for code models
     llm = _create_hf_llm("Qwen/Qwen2.5-Coder-32B-Instruct")
     if llm: return llm
+    print("~"*60)
 
     # Then try OpenRouter
     llm = _create_openrouter_llm("qwen/qwen-2.5-coder-32b-instruct:free")
     if llm: return llm
+    print("~"*60)
 
     # Finally Groq
     llm = _create_groq_llm("qwen-qwq-32b")
     if llm: return llm
+    print("~"*60)
 
     raise ValueError("Failed to instantiate Code Interpreter LLM from any provider.")
 
@@ -211,14 +236,17 @@ def create_generic_llm():
     # HuggingFace
     llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
     if llm: return llm
+    print("~"*60)
 
     # OpenRouter
     llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
     if llm: return llm
+    print("~"*60)
 
     # Groq
     llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
     if llm: return llm
+    print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
@@ -226,24 +254,24 @@ def create_generic_llm():
 def create_worfklow():
     try:
         orchestrator_llm = create_orchestrator_llm()
-        print("Orchestrator LLM initialized")
+        print("Orchestrator LLM initialized\n")
 
         visual_llm = create_visual_llm()
-        print("Visual LLM initialized")
+        print("Visual LLM initialized\n")
 
         audio_llm = create_audio_llm()
-        print("Audio LLM initialized")
+        print("Audio LLM initialized\n")
 
         researcher_llm = create_researcher_llm()
-        print("Researcher LLM initialized")
+        print("Researcher LLM initialized\n")
 
         interpreter_llm = create_interpreter_llm()
-        print("Code Interpreter LLM initialized")
+        print("Code Interpreter LLM initialized\n")
 
         generic_llm = create_generic_llm()
-        print("Generic LLM initialized.")
+        print("Generic LLM initialized.\n")
     except Exception as e:
-        print(f"Error initializing LLMs. Ensure API keys are set: {e}")
+        print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
         # You might want to raise the exception or handle it more gracefully
         raise
 
