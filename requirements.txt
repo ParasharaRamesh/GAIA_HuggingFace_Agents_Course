@@ -13,6 +13,7 @@ supabase
 arxiv
 pymupdf
 wikipedia
+itsdangerous
 python-dotenv
 fitz
 duckduckgo-search
