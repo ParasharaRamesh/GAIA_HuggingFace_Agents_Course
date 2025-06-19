@@ -61,9 +61,10 @@ class BasicAgent:
             full_input_content = f"Original query: {question} | Associated file path: {path}"
 
         initial_state: AgentState = { # Explicitly type as AgentState
-            "query": full_input_content, # The overall query
-            "messages": [HumanMessage(content=full_input_content)], # Initial message to the orchestrator
-            "final_answer": None # Initialize final_answer
+            "input": full_input_content,
+            "messages": [HumanMessage(content=full_input_content)],
+            "final_answer": "",
+            "remaining_steps": 30
         }
 
         print(f"\n--- Running orchestrator workflow for: '{full_input_content}' ---")

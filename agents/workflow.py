@@ -1,8 +1,11 @@
 import os
+from typing import Optional
 
 from langchain_community.llms.huggingface_hub import HuggingFaceHub
 from langchain_core.language_models import BaseChatModel
+from langchain_core.utils.utils import secret_from_env
 from langchain_huggingface.chat_models import ChatHuggingFace
+from pydantic import SecretStr, Field
 
 from agents.orchestrator import create_master_orchestrator_workflow
 from langchain.chat_models import init_chat_model
@@ -13,6 +16,21 @@ from langchain_groq import ChatGroq  # For Groq
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Custom ChatOpenRouter class
+class ChatOpenRouter(ChatOpenAI):
+    openai_api_key: Optional[SecretStr] = Field(
+        alias="api_key", default_factory=secret_from_env("OPENROUTER_API_KEY", default=None)
+    )
+    @property
+    def lc_secrets(self) -> dict[str, str]:
+        return {"openai_api_key": "OPENROUTER_API_KEY"}
+
+    def __init__(self,
+                 openai_api_key: Optional[str] = None,
+                 **kwargs):
+        openai_api_key = openai_api_key or os.environ.get("OPENROUTER_API_KEY")
+        super().__init__(base_url="https://openrouter.ai/api/v1", openai_api_key=openai_api_key, **kwargs)
 
 
 # --- Helper Functions to Instantiate LLMs from Providers ---
@@ -75,7 +93,7 @@ def _create_hf_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel |
             huggingfacehub_api_token=hf_token
         )
 
-        llm = ChatHuggingFace(llm=llm_hub)
+        llm = ChatHuggingFace(llm=llm_hub, verbose=True)
 
         print(f"Successfully instantiated HuggingFace LLM: {model_id}")
         return llm
@@ -84,7 +102,7 @@ def _create_hf_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel |
         return None
 
 
-def _create_openrouter_llm(model_id: str, use_init_llm: bool = True) -> BaseChatModel | None:
+def _create_openrouter_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel | None:
     """Attempts to instantiate an OpenRouter LLM using ChatOpenAI."""
     if use_init_llm:
         return _try_init_llm("openrouter", model_id)
@@ -95,10 +113,8 @@ def _create_openrouter_llm(model_id: str, use_init_llm: bool = True) -> BaseChat
         print("OPENROUTER_API_KEY not found for OpenRouter LLM.")
         return None
     try:
-        llm = ChatOpenAI(
-            model=model_id,
-            base_url="https://openrouter.ai/api/v1",
-            api_key=openrouter_key,
+        llm = ChatOpenRouter(
+            model_name=model_id,
             temperature=0.3,
             max_tokens=512
         )
@@ -134,119 +150,135 @@ def _create_groq_llm(model_id: str, use_init_llm: bool = True) -> BaseChatModel 
 
 
 # LLM Initializations
-def create_orchestrator_llm():
+def create_orchestrator_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     # Try HuggingFace first
-    llm = _create_hf_llm("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
+        if llm: return llm
+        print("~"*60)
 
     # Then OpenRouter
-    llm = _create_openrouter_llm("deepseek/deepseek-r1-distill-qwen-14b:free")
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
+        if llm: return llm
+        print("~"*60)
 
     # Finally Groq
-    llm = _create_groq_llm("deepseek-r1-distill-llama-70b")
-    if llm: return llm
-    print("~"*60)
+    if use_groq:
+        llm = _create_groq_llm("deepseek-r1-distill-llama-70b")
+        if llm: return llm
+        print("~"*60)
 
     raise ValueError("Failed to instantiate Orchestrator LLM from any provider.")
 
 
-def create_visual_llm():
+def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     # HuggingFace (some multi-modal models like Llava might be available as endpoints)
-    llm = _create_hf_llm(
-        "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm(
+            "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
+        if llm: return llm
+        print("~"*60)
 
     # OpenRouter (often has access to multi-modal models)
-    llm = _create_openrouter_llm(
-        "meta-llama/llama-3.2-11b-vision-instruct:free")  # Example, check OpenRouter's list for actual ID
-    # google/gemma-3-27b-it:free also works
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("meta-llama/llama-4-maverick:free")  # Example, check OpenRouter's list for actual ID
+        # google/gemma-3-27b-it:free also works
+        if llm: return llm
+        print("~"*60)
 
     # Fallback if no multi-modal found: a generic LLM (won't handle images directly)
     print("Warning: No multi-modal LLM found for Visual Agent. Falling back to generic LLM.")
     return create_generic_llm()  # Fallback to a generic text-only LLM
 
 
-def create_audio_llm():
+def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     # HuggingFace
-    llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
+        if llm: return llm
+        print("~"*60)
 
     # OpenRouter
-    llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
+        if llm: return llm
+        print("~"*60)
 
     # Groq
-    llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-    if llm: return llm
-    print("~"*60)
+    if use_groq:
+        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
+        if llm: return llm
+        print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
 
-def create_researcher_llm():
+def create_researcher_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     """Researcher: Some normal LLM (can be the same as audio/generic)."""
     # HuggingFace
-    llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
+        if llm: return llm
+        print("~"*60)
 
     # OpenRouter
-    llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("meta-llama/llama-3.3-70b-instruct:free")
+        if llm: return llm
+        print("~"*60)
 
     # Groq
-    llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-    if llm: return llm
-    print("~"*60)
+    if use_groq:
+        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
+        if llm: return llm
+        print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
 
-def create_interpreter_llm():
+def create_interpreter_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     """Code: Some LLM for coding tasks."""
     # Prioritize HuggingFace for code models
-    llm = _create_hf_llm("Qwen/Qwen2.5-Coder-32B-Instruct")
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm("Qwen/Qwen2.5-Coder-32B-Instruct")
+        if llm: return llm
+        print("~"*60)
 
     # Then try OpenRouter
-    llm = _create_openrouter_llm("qwen/qwen-2.5-coder-32b-instruct:free")
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("mistralai/devstral-small:free")
+        if llm: return llm
+        print("~"*60)
 
     # Finally Groq
-    llm = _create_groq_llm("qwen-qwq-32b")
-    if llm: return llm
-    print("~"*60)
+    if use_groq:
+        llm = _create_groq_llm("qwen-qwq-32b")
+        if llm: return llm
+        print("~"*60)
 
     raise ValueError("Failed to instantiate Code Interpreter LLM from any provider.")
 
 
-def create_generic_llm():
+def create_generic_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     """Generic: Some normal free LLM."""
     # HuggingFace
-    llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-    if llm: return llm
-    print("~"*60)
+    if use_hf:
+        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
+        if llm: return llm
+        print("~"*60)
 
     # OpenRouter
-    llm = _create_openrouter_llm("google/gemma-2-9b-it:free")
-    if llm: return llm
-    print("~"*60)
+    if use_or:
+        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
+        if llm: return llm
+        print("~"*60)
 
     # Groq
-    llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-    if llm: return llm
-    print("~"*60)
+    if use_groq:
+        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
+        if llm: return llm
+        print("~"*60)
 
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
