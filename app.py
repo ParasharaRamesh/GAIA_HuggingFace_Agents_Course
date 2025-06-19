@@ -16,6 +16,8 @@ from agents.orchestrator import create_master_orchestrator_workflow
 from agents.state import AgentState
 from langfuse.langchain import CallbackHandler #
 
+# Load environment variables (ensure .env file is present or keys are set globally)
+load_dotenv()
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -34,8 +36,6 @@ with open('expected_answers.json', 'r', encoding='utf-8') as f:
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initializing with LLMs and workflow...")
-        # Load environment variables (ensure .env file is present or keys are set globally)
-        load_dotenv()
 
         self.langfuse_handler = CallbackHandler()
         print("Langfuse callback handler initialized.")
@@ -255,13 +255,6 @@ def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_te
     if not custom_question_text or len(custom_question_text.strip()) < 5:
         return "Please enter a custom question of at least 5 characters.", None
 
-    # Instantiate Agent
-    try:
-        agent = BasicAgent()  # This will be your full agent system later
-    except Exception as e:
-        error_msg = f"Error instantiating agent: {e}"
-        return error_msg, None
-
     status_message_for_return = ''
     local_file_path = None
 
@@ -290,6 +283,12 @@ def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_te
     }]
 
     print(f"\nRunning agent on custom question (task_id: {mock_task_id}): {custom_question_text[:100]}...\n")
+    # Instantiate Agent
+    try:
+        agent = BasicAgent()  # This will be your full agent system later
+    except Exception as e:
+        error_msg = f"Error instantiating agent: {e}"
+        return error_msg, None
 
     # Run the agent with the mock question
     answers_payload, results_log = run_agent(agent, mock_question_data)
