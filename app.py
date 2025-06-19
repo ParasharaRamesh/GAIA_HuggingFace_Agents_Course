@@ -7,6 +7,7 @@ import mimetypes
 import json
 import uuid
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage
 
 from tools.audio import model # this triggers the whisper model to be loaded
@@ -40,19 +41,19 @@ class BasicAgent:
         print("Langfuse callback handler initialized.")
 
         try:
-            #TODO.x change the LLMs later on to free stuff
+            #TODO.x change everything later
             # Orchestrator LLM (for high-level planning and reasoning)
-            self.orchestrator_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            self.orchestrator_llm = BaseChatModel() # Example: OpenAI
             # Visual LLM (for multimodal capabilities, e.g., image analysis)
-            self.visual_llm = ChatOpenAI(model="gpt-4o", temperature=0) # gpt-4o supports vision. Or ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest")
+            self.visual_llm = BaseChatModel()
             # Audio LLM (can be a standard text model if transcription is tool-based)
-            self.audio_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            self.audio_llm = BaseChatModel()
             # Researcher LLM (for web search reasoning)
-            self.researcher_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            self.researcher_llm = BaseChatModel()
             # Interpreter LLM (for code generation and execution)
-            self.interpreter_llm = ChatAnthropic(model="claude-3-sonnet-20240229", temperature=0) # Example: Anthropic
+            self.interpreter_llm = BaseChatModel()
             # Generic LLM (for fallback and general tasks)
-            self.generic_llm = ChatOpenAI(model="gpt-4o", temperature=0) # Example: OpenAI
+            self.generic_llm = BaseChatModel()
             print("LLMs initialized.")
         except Exception as e:
             print(f"Error initializing LLMs. Ensure API keys are set: {e}")
@@ -234,10 +235,12 @@ def evaluate_random_question(profile: gr.OAuthProfile | None):
     return status_message, results_df
 
 
-def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_text: str):
+def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_text: str, question_id_input: str):
     """
     Runs the BasicAgent on a custom question provided by the user.
     """
+    local_file_path = None
+
     if profile:
         username = f"{profile.username}"
         print(f"User logged in: {username}")
@@ -259,13 +262,31 @@ def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_te
         error_msg = f"Error instantiating agent: {e}"
         return error_msg, None
 
+    status_message_for_return = ''
+    local_file_path = None
+
+    if question_id_input and question_id_input.strip():
+        mock_task_id = question_id_input.strip()
+        print(f"Attempting to get file for Question ID: {mock_task_id}...")
+
+        # Call the provided get_task_file function
+        local_file_path = get_task_file(mock_task_id)
+
+        if local_file_path:
+            print(f"File ready at: {local_file_path}")
+            status_message_for_return += f"File for ID {mock_task_id} processed. "
+        else:
+            print(f"Could not get file for ID {mock_task_id}. Proceeding without file context.")
+            status_message_for_return += f"NOTE: Failed to get file for ID {mock_task_id}. "
+    else:
+        mock_task_id = f"custom_{uuid.uuid4()}"  # Generate unique ID if no question_id
+        print(f"Generated new mock_task_id: {mock_task_id}")
+
     # Create a mock question data for the custom question
-    # We use a UUID to ensure a unique task_id for tracking
-    mock_task_id = f"custom_{uuid.uuid4()}"
     mock_question_data = [{
         "task_id": mock_task_id,
         "question": custom_question_text,
-        "file_name": None  # Custom questions typically don't have associated files unless manually handled
+        "file_name": local_file_path   # Custom questions typically don't have associated files unless manually handled
     }]
 
     print(f"\nRunning agent on custom question (task_id: {mock_task_id}): {custom_question_text[:100]}...\n")
@@ -283,7 +304,7 @@ def evaluate_custom_question(profile: gr.OAuthProfile | None, custom_question_te
     return status_message, results_df
 
 
-def get_task_file(task_id: str, save_dir="downloads"):
+def get_task_file(task_id: str, save_dir="."):
     """
     Downloads the file associated with the given task_id and saves it locally.
     If no filename is provided by the server, uses the content type to determine an extension.
@@ -491,6 +512,11 @@ with gr.Blocks() as demo:
         placeholder="e.g., 'What are the main features of the latest iPhone model?'",
         lines=3
     )
+    question_id_input = gr.Textbox(
+        label="Optional: Enter Question ID (for fetching associated files)",
+        placeholder="e.g., 1 or 20 (This will download a file if available and pass its path to the agent)",
+        lines=1
+    )
     run_custom_button = gr.Button("Run Agent on Custom Question")
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
@@ -514,7 +540,7 @@ with gr.Blocks() as demo:
 
     run_custom_button.click(
         fn=evaluate_custom_question,
-        inputs=[ custom_question_input],
+        inputs=[custom_question_input, question_id_input],
         outputs=[status_output, results_table]
     )
 
