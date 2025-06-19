@@ -3,7 +3,7 @@ from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage, RemoveMessage
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
@@ -14,7 +14,7 @@ from tools.visual import read_image_and_encode
 # Logic to format messages for multimodal LLM understanding
 # This function will be used as a pre_model_hook to modify messages
 # before they are sent to the LLM during the agent's internal thought process.
-def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[BaseMessage]:
+def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> Dict[str, Any]:
     """
     First, cleans agent messages using the common hook, then analyzes the message history,
     specifically looking for ToolMessage outputs that contain Base64 encoded image data.
@@ -35,8 +35,11 @@ def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[Bas
     """
     # Call the common cleaning hook first ---
     hook = create_clean_agent_messages_hook("visual")
-    cleaned_messages = hook(messages)
-    cleaned_messages = cleaned_messages["messages"][1:]
+    input_state = hook(messages)
+
+    cleaned_messages = input_state["messages"][1:]
+    new_input = input_state["input"]
+    print(f"New input from supervisor to this agent is {new_input}")
 
     print(f"now going to add the image data in base 64 format in the messages")
     for i, message in enumerate(cleaned_messages):  # Iterate over the cleaned messages
@@ -62,7 +65,11 @@ def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[Bas
                 # Handle cases where the base64 string format might not be as expected
                 cleaned_messages[i] = HumanMessage(
                     content=f"Image data received but could not be parsed: {message.content}")  # Modify cleaned_messages
-    return cleaned_messages  # Return the modified cleaned_messages
+
+    return {
+        "messages": [RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES), *cleaned_messages],
+        "input": new_input
+    }
 
 
 def create_visual_agent(llm: BaseChatModel):

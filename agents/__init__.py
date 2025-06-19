@@ -1,6 +1,6 @@
 import operator
 from typing import Literal, List, Dict, Any, Callable
-
+import re
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, RemoveMessage, AIMessage, ToolMessage
 
 ''' util functions '''
@@ -49,30 +49,30 @@ def create_type_string(typed_dict_class: type) -> str:
 def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMessage]], Dict[str, Any]]:
     """
     Factory function to create a pre-model hook that cleans message history for a specific agent.
-    It retains:
+    It now explicitly handles extracting the supervisor's 'Action Input' as the effective
+    'Human Input' for the delegated agent, and manages the agent's scratchpad.
+
+    Retains:
     1. The first SystemMessage from the history.
-    2. The last HumanMessage from the history.
+    2. The most recent 'Action Input' from an AIMessage (presumably the supervisor's delegation)
+       transformed into a HumanMessage. This becomes the primary input for the agent's current turn.
+       If no such delegation is found, it falls back to the last actual HumanMessage.
     3. All subsequent AIMessages and ToolMessages where:
        a. Their 'name' field matches the provided 'agent_name'.
        b. They are an AIMessage and their 'name' field is None (assuming it's the agent's direct thought).
-    Messages older than the last HumanMessage (excluding the SystemMessage) are removed.
 
-    This ensures the agent maintains a clear context of its instructions, the user's latest query,
-    and its own ongoing internal thought-action-observation cycle, while pruning irrelevant past history.
+    Messages older than the effective 'Human Input' (excluding the SystemMessage and agent's scratchpad)
+    are removed.
 
     Args:
         agent_name (str): The name of the agent this hook is being created for.
-                          This should match the 'name' attribute you set when
-                          creating your agent (e.g., 'researcher-agent').
 
     Returns:
         Callable[[List[BaseMessage]], Dict[str, Any]]: The actual hook function
                                                         that `create_react_agent` expects.
     """
 
-    # This inner function is the actual hook that will be passed to pre_model_hook.
-    # It "remembers" the agent_name from its outer scope (the factory function).
-    def _clean_agent_messages_hook(messages: List[BaseMessage]) -> Dict[str, Any]:
+    def _clean_agent_messages_hook_instance(messages: List[BaseMessage]) -> Dict[str, Any]:
         new_messages: List[BaseMessage] = []
 
         # 1. Collect the first SystemMessage if present
@@ -84,50 +84,70 @@ def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMess
         if system_msg:
             new_messages.append(system_msg)
 
-        # 2. Find the index of the last HumanMessage
-        last_human_message_idx = -1
+        # Initialize delegated_content to ensure it's always defined
+        delegated_content = ""
+        effective_human_message = None
+        start_index_for_agent_scratchpad = 0
+
+        # 2. Identify the effective Human Input for this agent's turn.
+        #    This is primarily the 'Action Input' from the most recent supervisor delegation.
         for i in reversed(range(len(messages))):
-            if isinstance(messages[i], HumanMessage):
-                last_human_message_idx = i
-                break
+            msg = messages[i]
+            if isinstance(msg, AIMessage):
+                match = re.search(r"Action Input:\s*(.*)", msg.content, re.IGNORECASE | re.DOTALL)
+                if match:
+                    # Extract and store the delegated content
+                    delegated_content = match.group(1).strip().strip('"')
+                    effective_human_message = HumanMessage(content=delegated_content)
+                    start_index_for_agent_scratchpad = i + 1
+                    break
+            # Fallback to the last actual HumanMessage if no explicit supervisor delegation message is found
+            elif isinstance(msg, HumanMessage) and effective_human_message is None:
+                effective_human_message = msg
+                # Capture its content as the "input" in this fallback scenario
+                delegated_content = msg.content
+                start_index_for_agent_scratchpad = i + 1
 
-        # 3. If a HumanMessage is found, add it and then iterate from its position
-        #    to collect relevant subsequent messages.
-        if last_human_message_idx != -1:
-            for i in range(last_human_message_idx, len(messages)):
-                current_message = messages[i]
+        print(f"Delegated Action Input of Supervisor extracted is {delegated_content}")
+        # Add the effective Human Message (either delegated input or original human query)
+        if effective_human_message:
+            new_messages.append(effective_human_message)
+        else:
+            # If no effective human message at all (unlikely in typical flows), start scratchpad from beginning
+            start_index_for_agent_scratchpad = 0
 
-                # Skip if this is the SystemMessage and it's already been added (at the beginning)
-                if current_message is system_msg and current_message in new_messages:
-                    continue
+        # 3. Collect agent's own ReAct scratchpad (AIMessage, ToolMessage matching its name)
+        #    starting from after the effective Human Message.
+        for i in range(start_index_for_agent_scratchpad, len(messages)):
+            current_message = messages[i]
 
-                # Always include the HumanMessage (which is at last_human_message_idx)
-                if isinstance(current_message, HumanMessage):
-                    new_messages.append(current_message)
-                    continue
+            # Skip SystemMessage if it's already added at the beginning
+            if current_message is system_msg and current_message in new_messages:
+                continue
 
-                # For AIMessages and ToolMessages, apply name-based filtering
-                if isinstance(current_message, (AIMessage, ToolMessage)):
-                    msg_name = getattr(current_message, 'name', None)
+            # Skip the effective HumanMessage if it was just added to prevent duplicates
+            if current_message is effective_human_message:
+                continue
 
-                    # Keep if the message's name explicitly matches the current agent's name
-                    if msg_name == agent_name:
-                        new_messages.append(current_message)
-                        continue
+            msg_name = getattr(current_message, 'name', None)
 
-                    # Also, keep AIMessages that do not have an explicit 'name' set.
-                    # These are often the direct outputs (thoughts, actions) from the LLM itself
-                    # within the agent's chain, before a specific tool or agent name is assigned.
-                    if isinstance(current_message, AIMessage) and msg_name is None:
-                        new_messages.append(current_message)
-                        continue
+            # Keep if the message's name explicitly matches the current agent's name
+            if msg_name == agent_name:
+                new_messages.append(current_message)
+                continue
 
-                # Any other message types or named messages that don't match the agent_name criteria are skipped.
+            # Also, keep AIMessages that do not have an explicit 'name' set,
+            # assuming these are direct outputs (thoughts, actions) from the LLM itself
+            # within the agent's current chain.
+            if isinstance(current_message, AIMessage) and msg_name is None:
+                new_messages.append(current_message)
+                continue
 
-        # Return the final cleaned message list in the format required by LangGraph's pre_model_hook.
-        # RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES) is crucial for overwriting the state.
+        # Return the final cleaned message list AND the updated 'input' key.
+        # Returning 'input' here tells LangGraph to merge this value into the state's 'input' field.
         return {
-            "messages": [RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES), *new_messages]
+            "messages": [RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES), *new_messages],
+            "input": delegated_content
         }
 
-    return _clean_agent_messages_hook
+    return _clean_agent_messages_hook_instance

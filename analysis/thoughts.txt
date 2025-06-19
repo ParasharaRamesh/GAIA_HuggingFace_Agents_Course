@@ -48,47 +48,5 @@ Important Links:
 
 TODO:
 
-Got it! Thanks for the clarification. Your points are valid and important for creating a truly robust orchestrator.
-
-Let's address them:
-
-1.  **Supervisor Prompt - `Action Input` with Multiple Sub-Steps for the Sub-Agent:**
-    * **Yes, this is a very strong improvement!** You're absolutely right. While the `Action Input` should be concise, it can indeed outline a "mini-plan" or sequential sub-tasks *if* that sub-task itself is inherently complex and benefits from a structured approach, even within a single delegation to a specialized agent.
-    * **Example:** Instead of `researcher[Find climate change stats]` you might have `researcher[First, find global temperature anomalies between 1980-2020. Second, find sea level rise data for the same period. Third, identify sources of greenhouse gas emissions.]`
-    * This empowers the sub-agent to follow a clearer internal path without needing to rely solely on its own emergent reasoning for structuring a complex task. It also ensures the supervisor provides sufficient guidance for that particular delegation.
-    * We'll incorporate this into the supervisor's prompt instructions.
-
-2.  **Supervisor Prompt - Acknowledging Agent's Ability to Ask for Help if Stuck:**
-    * **Absolutely, this is essential for robustness!** The supervisor needs to be aware that agents might return a "stuck" signal. Its prompt should include instructions on:
-        * Recognizing the "STUCK" format (e.g., `Final Answer: STUCK - [Reason]`).
-        * How to react to it (e.g., ask clarifying questions back to the user, try a different approach, delegate to a different agent, or even re-try with more context/guidance).
-    * This creates a feedback loop and prevents the system from silently failing when a sub-agent hits an unresolvable issue.
-
-### Revised High-Level Plan (Incorporating your clarifications):
-
-The overall structure remains the same, but the content of the prompt changes in Steps 3 and 4 will be updated to reflect these new capabilities.
-
-1.  **Step 1: Create the `_clean_agent_messages_hook` Utility Function.**
-    * We'll create a new Python file (e.g., `utils/message_cleaner.py`) and provide the Python code for the function.
-
-2.  **Step 2: Update Sub-Agent Prompt Loading and `ChatPromptTemplate` Construction.**
-    * Modify agent files (`audio.py`, `interpreter.py`, `researcher.py`, `visual.py`, `generic.py`):
-        * Adjust `react_prompt_content` to contain *only* the System Message.
-        * Change `ChatPromptTemplate.from_template(...)` to `ChatPromptTemplate.from_messages(...)`.
-        * Integrate the `_clean_agent_messages_hook` using `pre_model_hooks`.
-    * I'll provide an example for one agent.
-
-3.  **Step 3: Refine the Supervisor's Prompt (`orchestrator_prompt.txt`).**
-    * Update `Action Input` instructions to guide the supervisor in creating concise tasks that *can include sub-steps or mini-plans* for the delegated agent.
-    * **Add new instructions** for the supervisor to understand and act upon "STUCK" messages from sub-agents.
-    * Provide the updated content for `orchestrator_prompt.txt`.
-
-4.  **Step 4: Refine All Sub-Agent Prompts (`*_react_prompt.txt` files).**
-    * For *each* sub-agent's prompt file:
-        * Reinforce focus on the `input` (now potentially a mini-plan).
-        * Instruct to include a concise summary in `Final Answer:`.
-        * **Add clear instructions on how to signal being "STUCK"** to the supervisor.
-    * I'll provide updated content for each of these prompt files.
-
-This looks like a robust and well-thought-out plan. Are you ready to start with **Step 1**?
-
+- need to either implement custom handoff tools in the supervisor package to extract the "Action Input" and use that to replace the input key in the state received by the subagent.
+- or do the same thing in the prehook of the subagents
