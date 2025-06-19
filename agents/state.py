@@ -12,8 +12,10 @@ class AgentState(TypedDict):
                                       in the conversation. New messages are appended.
         final_answer (Optional[str]): The definitive, synthesized answer to the `query`,
                                       populated by the `final_agent` when ready.
+        remaining_steps (int): The number of steps required to complete the `query`.
     """
     query: str
     messages: Annotated[List[BaseMessage], operator.add]
     final_answer: Optional[str]
+    remaining_steps: int
 

@@ -6,18 +6,13 @@ import re
 import mimetypes
 import json
 import uuid
-
-from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, AIMessage
 
+from agents.workflow import create_worfklow
 from tools.audio import model # this triggers the whisper model to be loaded
-from dotenv import load_dotenv
-from agents.orchestrator import create_master_orchestrator_workflow
 from agents.state import AgentState
 from langfuse.langchain import CallbackHandler #
 
-# Load environment variables (ensure .env file is present or keys are set globally)
-load_dotenv()
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -40,43 +35,13 @@ class BasicAgent:
         self.langfuse_handler = CallbackHandler()
         print("Langfuse callback handler initialized.")
 
-        try:
-            #TODO.x change everything later
-            # Orchestrator LLM (for high-level planning and reasoning)
-            self.orchestrator_llm = BaseChatModel() # Example: OpenAI
-            # Visual LLM (for multimodal capabilities, e.g., image analysis)
-            self.visual_llm = BaseChatModel()
-            # Audio LLM (can be a standard text model if transcription is tool-based)
-            self.audio_llm = BaseChatModel()
-            # Researcher LLM (for web search reasoning)
-            self.researcher_llm = BaseChatModel()
-            # Interpreter LLM (for code generation and execution)
-            self.interpreter_llm = BaseChatModel()
-            # Generic LLM (for fallback and general tasks)
-            self.generic_llm = BaseChatModel()
-            print("LLMs initialized.")
-        except Exception as e:
-            print(f"Error initializing LLMs. Ensure API keys are set: {e}")
-            # You might want to raise the exception or handle it more gracefully
-            raise
-
         # --- Create the Master Orchestrator Workflow ---
         print("Creating master orchestrator workflow...")
-        orchestrator_compiled_app = create_master_orchestrator_workflow(
-            orchestrator_llm=self.orchestrator_llm,
-            visual_llm=self.visual_llm,
-            audio_llm=self.audio_llm,
-            researcher_llm=self.researcher_llm,
-            interpreter_llm=self.interpreter_llm,
-            generic_llm=self.generic_llm,
-        ).compile()
-
+        orchestrator_compiled_app = create_worfklow()
         self.orchestrator_app = orchestrator_compiled_app.with_config(
             {"callbacks": [self.langfuse_handler]}
         )
-
-        print("Master orchestrator workflow created and Langfuse callback configured.")
-        print("Master orchestrator workflow created.")
+        print("Langfuse callback handler created.")
 
     def __call__(self, question: str, path: str | None) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}")

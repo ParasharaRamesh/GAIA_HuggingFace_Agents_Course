@@ -6,6 +6,8 @@ langgraph-supervisor
 langchain-community
 langchain-core
 langchain-huggingface
+langchain-openai
+langchain-groq
 langchain-chroma
 langgraph
 huggingface_hub

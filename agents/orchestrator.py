@@ -59,11 +59,11 @@ def create_master_orchestrator_workflow(
     via a post-model hook when the orchestrator provides the final response.
     """
     # 1. Instantiate specialized agents, passing their specific LLM
-    visual_expert = create_visual_agent(llm=visual_llm)
+    generic_expert = create_generic_agent(llm=generic_llm) # Corrected parameter name to 'llm'
     audio_expert = create_audio_agent(llm=audio_llm)
     research_expert = create_researcher_agent(llm=researcher_llm)
     code_expert = create_code_agent(llm=interpreter_llm)
-    generic_expert = create_generic_agent(llm=generic_llm) # Corrected parameter name to 'llm'
+    visual_expert = create_visual_agent(llm=visual_llm)
 
     specialized_agents = [
         visual_expert,
