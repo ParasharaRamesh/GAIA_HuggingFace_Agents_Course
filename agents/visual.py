@@ -6,7 +6,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
-from agents import split_point_marker, human_message_content_template
+from agents import create_clean_agent_messages_hook
 from agents.state import AgentState
 from tools.visual import read_image_and_encode
 
@@ -16,11 +16,11 @@ from tools.visual import read_image_and_encode
 # before they are sent to the LLM during the agent's internal thought process.
 def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[BaseMessage]:
     """
-    Analyzes the message history, specifically looking for ToolMessage outputs
-    that contain Base64 encoded image data. If found, it injects a new
-    HumanMessage that explicitly includes this image data in a multimodal format
-    (image_url type), so that the multimodal LLM can correctly "see" and
-    process the image. This ensures the LLM interprets the image visually
+    First, cleans agent messages using the common hook, then analyzes the message history,
+    specifically looking for ToolMessage outputs that contain Base64 encoded image data.
+    If found, it injects a new HumanMessage that explicitly includes this image data
+    in a multimodal format (image_url type), so that the multimodal LLM can correctly
+    "see" and process the image. This ensures the LLM interprets the image visually
     rather than as a plain text string.
 
     This hook helps bridge the gap between tool output (plain string) and
@@ -31,28 +31,39 @@ def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> List[Bas
 
     Returns:
         List[BaseMessage]: The potentially modified list of messages, with Base64
-                           image data properly formatted for a multimodal LLM.
+                            image data appropriately formatted for a multimodal LLM.
     """
-    formatted_messages = []
-    for message in messages:
-        if isinstance(message, ToolMessage) and message.name == "read_image_and_encode":
-            # Assuming the content of ToolMessage from read_image_and_encode is a Base64 string
-            base64_image_data = message.content
+    # Call the common cleaning hook first ---
+    hook = create_clean_agent_messages_hook("visual")
+    cleaned_messages = hook(messages)
+    cleaned_messages = cleaned_messages["messages"][1:]
 
-            # Create a multimodal HumanMessage to make the LLM 'see' the image
-            multimodal_human_message = HumanMessage(
-                content=[
-                    {"type": "text", "text": "Image content from tool:"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image_data}"}},
-                    # Optionally, include the original tool message content if it adds context
-                    # {"type": "text", "text": f"Original tool output: {base64_image_data}"}
-                ]
-            )
-            formatted_messages.append(multimodal_human_message)
-            formatted_messages.append(AIMessage(content=f"Tool output for read_image_and_encode (Image sent for visual analysis)."))
-        else:
-            formatted_messages.append(message)
-    return formatted_messages
+    print(f"now going to add the image data in base 64 format in the messages")
+    for i, message in enumerate(cleaned_messages):  # Iterate over the cleaned messages
+        if isinstance(message, ToolMessage) and message.content and "base64," in message.content:
+            # Assuming the tool returns a string like "Base64 image data: data:image/png;base64,..."
+            # Extract the actual base64 string
+            try:
+                base64_data = message.content.split("data:image/")[1].split(";base64,")[1]
+                mime_type = message.content.split("data:image/")[1].split(";base64,")[0]
+                image_url = f"data:image/{mime_type};base64,{base64_data}"
+
+                # Create a new HumanMessage with multimodal content
+                # This new message replaces the original ToolMessage (or is inserted after it)
+                # to present the image to the LLM visually.
+                cleaned_messages[i] = HumanMessage(  # Modify cleaned_messages
+                    content=[
+                        {"type": "text", "text": "Image successfully loaded:"},
+                        {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}}
+                    ]
+                )
+                print(f"successfully added base 64 encoded image data to {message}")
+            except IndexError:
+                # Handle cases where the base64 string format might not be as expected
+                cleaned_messages[i] = HumanMessage(
+                    content=f"Image data received but could not be parsed: {message.content}")  # Modify cleaned_messages
+    return cleaned_messages  # Return the modified cleaned_messages
+
 
 def create_visual_agent(llm: BaseChatModel):
     """
@@ -67,46 +78,72 @@ def create_visual_agent(llm: BaseChatModel):
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     prompts_dir = os.path.join(current_dir, '..', 'prompts')
-    visual_agent_prompt_path = os.path.join(prompts_dir, 'visual_agent_prompt.txt')
+    visual_react_prompt_path = os.path.join(prompts_dir, 'visual_react_prompt.txt')
 
     visual_prompt_content = ""
     try:
-        with open(visual_agent_prompt_path, "r", encoding="utf-8") as f:
+        with open(visual_react_prompt_path, "r", encoding="utf-8") as f:
             visual_prompt_content = f.read()
     except FileNotFoundError:
-        print(f"Error: Prompt file not found at {visual_agent_prompt_path}. Using fallback prompt content.")
-        # Fallback to a default ReAct prompt if file not found, adhering to the new structure
+        print(f"Error: Prompt file not found at {visual_react_prompt_path}")
+        # --- MODIFIED FALLBACK PROMPT START ---
+        # Fallback to a default ReAct prompt if file not found
+        # IMPORTANT: The content of this fallback is also a SYSTEM MESSAGE.
+        # It mirrors the new content for visual_react_prompt.txt.
         visual_prompt_content = (
-            "You are an expert Visual Analysis AI. You have access to tools."
-            "\n\nYour Goal: Analyze visual content. If a local file path is mentioned (e.g., image.png), "
-            "use the 'read_image_and_encode' tool first."
-            "\n\nAvailable Tools:\n{tools}\n\nTool Names:\n{tool_names}"  # Added for completeness in fallback
-            "\n\nBegin!\nHuman Input: {input}\nThought:{agent_scratchpad}"
+            "You are an expert Visual Analysis AI. Your primary function is to accurately interpret and describe images, "
+            "answer questions about visual content, or perform visual reasoning. You have access to a tool to read image files from the local file system. "
+            "Follow the ReAct pattern carefully.\n\n"
+            "**Your Goal:** Provide a detailed and accurate analysis, description, or answer related to the visual content provided or referenced in the conversation.\n\n"
+            "**Constraints:**\n- You MUST only use the tools provided. Do not invent new tools.\n"
+            "- Do not make assumptions. If information is missing, use your tools or signal you are STUCK.\n"
+            "- Your response should directly address the user's query regarding the image(s).\n\n"
+            "**Important Considerations and Limitations:**\n"
+            "- You DO NOT have the capability to perform video analysis. If you are tasked with analyzing a video, you must acknowledge this limitation. In such a scenario, you are permitted to either:\n"
+            "    - Attempt to make an educated guess or provide a speculative answer based *only* on the textual context provided, explicitly stating it's a guess.\n"
+            "    - Simply state that you cannot perform video analysis and provide no further response.\n\n"
+            "**Final Answer Format:**\n"
+            "- **Successful Completion:** When you have successfully completed the visual analysis task, "
+            "provide it clearly in the format: 'Final Answer: [A concise summary of the steps taken (e.g., \"read image.png, analyzed content\"), "
+            "followed by your EXACT final answer/description, which must always be a textual description or response.]'\n"
+            "- **Stuck/Cannot Proceed:** If the task is unclear or you cannot make progress or complete the task with your available tools "
+            "(e.g., if an image file is unreadable), you MUST clearly state: 'Final Answer: STUCK - [brief reason for being stuck and what you need]'\n\n"
+            "**Available Tools:**\n{tools}\n\n**Tool Names:**\n{tool_names}\n\n"
+            "**ReAct Process:**\nYou should always think step-by-step.\n"
+            "1.  **Understand:** Carefully examine the Human Input. If the input mentions a local image file path (e.g., 'image.png', 'path/to/image.jpg'), "
+            "your first step MUST be to use the `read_image_and_encode` tool to get the image data.\n"
+            "2.  **Thought:** Always articulate your thought process. Explain your plan, what information you need, what tools you intend to use (especially for reading images), and why.\n"
+            "3.  **Action:** Choose the best tool for your current Thought.\n"
+            "4.  **Observation:** Review the results of your tool execution. If you get Base64 image data, you can then perform visual analysis using your inherent multimodal capabilities.\n"
+            "5.  **Respond/Refine/Iterate:** Based on the observation and your visual analysis, formulate a clear, concise, and comprehensive answer or description. "
+            "If you are provided with an image directly (e.g., as part of a multimodal message) or if the task is purely textual, proceed with direct analysis.\n\n"
+            "Begin!"
         )
 
-    system_message_content = visual_prompt_content  # Default, will be updated if split_point_marker is found
-
-    if split_point_marker in visual_prompt_content:
-        parts = visual_prompt_content.split(split_point_marker, 1)
-        system_message_content = parts[0] + "\nBegin!"  # Append 'Begin!' back to the system part
-    else:
-        print(f"Warning: Split marker '{split_point_marker}' not found in '{visual_agent_prompt_path}'. "
-              "Ensure the file ends with exactly 'Begin!\\nHuman Input: {input}\\nThought:{agent_scratchpad}'. "
-              "Using the entire file content as the system message and adding human input template explicitly."
-              )
-
     # Construct the ChatPromptTemplate using from_messages
-    visual_prompt = ChatPromptTemplate.from_messages([
-        SystemMessage(content=system_message_content),
-        MessagesPlaceholder(variable_name="messages"),
-        HumanMessage(content=human_message_content_template)
-    ])
+    react_prompt = ChatPromptTemplate.from_messages([
+        # 1. System Message: This sets the agent's persona and core instructions.
+        #    The content comes directly from the 'visual_prompt_content' variable,
+        #    which is now expected to be ONLY the system message content.
+        SystemMessage(content=visual_prompt_content),
 
+        # 2. MessagesPlaceholder: This is where LangGraph injects the historical messages
+        #    from the overall graph's 'state.messages' into the agent's prompt.
+        #    Our '_format_messages_for_multimodal_llm' hook will process these messages
+        #    to ensure multimodal data is correctly formatted for the LLM.
+        MessagesPlaceholder(variable_name="messages"),
+
+        # 3. Human Message: This contains the specific task delegated by the supervisor
+        #    ({input}) and the agent's internal thought/action/observation history
+        #    for its *current* turn ({agent_scratchpad}).
+        #    These two variables are dynamically filled by create_react_agent.
+        HumanMessage(content="{input}\nThought:{agent_scratchpad}")
+    ])
     # Create the ReAct agent
     visual_agent_runnable = create_react_agent(
         model=llm,
         tools=tools,
-        prompt=visual_prompt,
+        prompt=react_prompt,
         name="visual",
         debug=True,
         state_schema=AgentState,

@@ -26,7 +26,7 @@ def extract_final_answer_hook(state: AgentState) -> dict:
         dict: A dictionary representing an update to the AgentState (e.g., {"final_answer": "..."}).
               Returns an empty dict if no final answer is found, indicating no state update.
     """
-    messages = state.get("messages", []) # Access messages from the state
+    messages = state.get("messages", [])  # Access messages from the state
     if not messages:
         return {}
 
@@ -41,17 +41,18 @@ def extract_final_answer_hook(state: AgentState) -> dict:
             match = re.search(r"final answer:(.*)", content, re.IGNORECASE | re.DOTALL)
             if match:
                 final_answer_content = match.group(1).strip()
-                print(f"DEBUG: Final answer extracted by hook: {final_answer_content}") # For debugging
-                return {"final_answer": final_answer_content} # Return the update for the 'final_answer' field
-    return {} # No updat
+                print(f"DEBUG: Final answer extracted by hook: {final_answer_content}")  # For debugging
+                return {"final_answer": final_answer_content}  # Return the update for the 'final_answer' field
+    return {}  # No updat
+
 
 def create_master_orchestrator_workflow(
-    orchestrator_llm: BaseChatModel,
-    visual_llm: BaseChatModel,
-    audio_llm: BaseChatModel, # Corrected type hint
-    researcher_llm: BaseChatModel,
-    interpreter_llm: BaseChatModel,
-    generic_llm: BaseChatModel,
+        orchestrator_llm: BaseChatModel,
+        visual_llm: BaseChatModel,
+        audio_llm: BaseChatModel,  # Corrected type hint
+        researcher_llm: BaseChatModel,
+        interpreter_llm: BaseChatModel,
+        generic_llm: BaseChatModel,
 ):
     """
     Creates and returns the main LangGraph workflow orchestrated by a supervisor.
@@ -61,16 +62,16 @@ def create_master_orchestrator_workflow(
     via a post-model hook when the orchestrator provides the final response.
     """
     # 1. Instantiate specialized agents, passing their specific LLM
-    generic = create_generic_agent(llm=generic_llm) # Corrected parameter name to 'llm'
+    generic = create_generic_agent(llm=generic_llm)  # Corrected parameter name to 'llm'
     audio = create_audio_agent(llm=audio_llm)
-    research = create_researcher_agent(llm=researcher_llm)
+    researcher = create_researcher_agent(llm=researcher_llm)
     code = create_code_agent(llm=interpreter_llm)
     visual = create_visual_agent(llm=visual_llm)
 
     specialized_agents = [
         visual,
         audio,
-        research,
+        researcher,
         code,
         generic
     ]
@@ -98,7 +99,9 @@ def create_master_orchestrator_workflow(
         model=orchestrator_llm,
         prompt=orchestrator_prompt_content,
         state_schema=AgentState,
-        post_model_hook=extract_final_answer_hook
+        post_model_hook=extract_final_answer_hook,
+        add_handoff_messages=False,
+        add_handoff_back_messages=False
     )
 
     return workflow
