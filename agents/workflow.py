@@ -1,5 +1,6 @@
 import os
 
+from langchain_community.llms.huggingface_hub import HuggingFaceHub
 from langchain_core.language_models import BaseChatModel
 from langchain_huggingface.chat_models import ChatHuggingFace
 
@@ -64,16 +65,14 @@ def _create_hf_llm(model_id: str) -> BaseChatModel | None:
         print("HF_TOKEN not found for HuggingFace LLM.")
         return None
     try:
-        # ChatHuggingFace acts as a wrapper. It requires an existing LLM instance
-        # to be passed to its 'llm' parameter.
-        llm_endpoint = HuggingFaceEndpoint(
+        llm_hub = HuggingFaceHub(
             repo_id=model_id,
-            temperature=0.3,
-            max_new_tokens=512,  # Use max_new_tokens here as it's for HuggingFaceEndpoint
+            # Parameters like temperature and max_new_tokens are passed via model_kwargs for HuggingFaceHub
+            model_kwargs={"temperature": 0.3, "max_new_tokens": 512},
             huggingfacehub_api_token=hf_token
         )
 
-        llm = ChatHuggingFace(llm=llm_endpoint)  # Pass the instantiated LLM
+        llm = ChatHuggingFace(llm=llm_hub)
 
         print(f"Successfully instantiated HuggingFace LLM: {model_id}")
         return llm
