@@ -40,6 +40,5 @@ Tool Names:
 {tool_names}
 
 Begin!
-
 Human Input: {input}
 Thought:{agent_scratchpad}
