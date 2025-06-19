@@ -3,7 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 from tools.search import web_search, wikipedia_search, arxiv_search, web_scraper
-
+from agents.state import AgentState
 
 def create_researcher_agent(llm: BaseChatModel):
     """
@@ -31,12 +31,14 @@ def create_researcher_agent(llm: BaseChatModel):
     react_prompt = ChatPromptTemplate.from_template(react_prompt_content)
 
     # Create the ReAct agent executor directly
+
     researcher_agent_runnable = create_react_agent(
         model=llm,
         tools=tools,
         prompt=react_prompt,
         name="researcher-agent",
-        debug=True
+        debug=True,
+        state_schema=AgentState
     )
 
     return researcher_agent_runnable

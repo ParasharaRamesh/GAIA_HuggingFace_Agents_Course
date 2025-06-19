@@ -6,6 +6,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
+from agents.state import AgentState
 from tools.visual import read_image_and_encode
 
 
@@ -105,7 +106,8 @@ def create_visual_agent(llm: BaseChatModel):
         prompt=visual_prompt,
         name="visual-agent",
         debug=True,
-        pre_model_hook=_format_messages_for_multimodal_llm
+        pre_model_hook=_format_messages_for_multimodal_llm,
+        state_schema=AgentState
     )
 
     return base_agent_executor

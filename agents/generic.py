@@ -5,6 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
+from agents.state import AgentState
 # Import tools: web_search and web_scraper from tools/search.py
 from tools.search import web_search, web_scraper
 
@@ -46,7 +47,8 @@ def create_generic_agent(llm: BaseChatModel):
         tools=tools,
         prompt=react_prompt,
         name="generic-agent",
-        debug=True
+        debug=True,
+        state_schema=AgentState
     )
 
     return generic_agent_runnable

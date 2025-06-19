@@ -4,6 +4,8 @@ import os
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
+
+from agents.state import AgentState
 from tools.interpreter import read_file, write_file, run_shell_command, run_python_script
 from tools.search import web_search, web_scraper
 
@@ -45,7 +47,8 @@ def create_code_agent(llm: BaseChatModel):
         tools=tools,
         prompt=react_prompt,
         name="code-agent",
-        debug=True
+        debug=True,
+        state_schema=AgentState
     )
 
     return code_agent_runnable

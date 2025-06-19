@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
+from agents.state import AgentState
 # Import tools from tools/audio.py
 from tools.audio import transcribe_audio, get_youtube_transcript
 
@@ -40,7 +41,8 @@ def create_audio_agent(llm: BaseChatModel):
         tools=tools,
         prompt=react_prompt,
         name="audio-agent",
-        debug=True
+        debug=True,
+        state_schema=AgentState
     )
 
     return audio_agent_runnable
