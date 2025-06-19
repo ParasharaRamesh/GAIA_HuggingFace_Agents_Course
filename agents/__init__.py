@@ -77,6 +77,8 @@ def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMess
 
         # 1. Collect the first SystemMessage if present
         system_msg = None
+        #TODO this is the weird thing! and why no system message?
+        messages = messages["messages"]
         for message in messages:
             if isinstance(message, SystemMessage):
                 system_msg = message

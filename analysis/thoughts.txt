@@ -49,4 +49,5 @@ Important Links:
 TODO:
 
 - extracted Action Input in the prehook for each agent
-- but the supervisor state is not transferred to agent cleanly in the handoff tool which is why a custom tool is needed!
+- System Message not showing up in the prehook!! generic! but human message showing twice
+- basically the premodel hook acts on the received messages and only then SystemMessage is added which is why its not there!
