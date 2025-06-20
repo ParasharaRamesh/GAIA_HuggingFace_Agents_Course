@@ -46,8 +46,8 @@ Important Links:
 * Refer to that article from langgraph which talks about how to build multi agent systems (swarm)
 
 
-TODO:
+TODO from here!:
 
-- extracted Action Input in the prehook for each agent
-- System Message not showing up in the prehook!! generic! but human message showing twice
-- basically the premodel hook acts on the received messages and only then SystemMessage is added which is why its not there!
+- new approach , custom handoff tools which add the Action Input delegated task in the input field and passes entire message as is + each agent has its own pre model hook which only trims the messages
+    - no Remove message used anywhere, the premodel hook trims messages which only the sub agent sees
+- the AgentState I have defined needs to inherit the original AgentState because the messages I have just plainly uses operator.add whereas the langgraph one uses some complex logic
