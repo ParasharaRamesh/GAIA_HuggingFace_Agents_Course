@@ -99,7 +99,9 @@ def create_master_orchestrator_workflow(
         model=orchestrator_llm,
         prompt=orchestrator_prompt_content,
         state_schema=AgentState,
-        post_model_hook=extract_final_answer_hook
+        post_model_hook=extract_final_answer_hook,
+        output_mode="last_message",
+        add_handoff_messages=False
     )
 
     return workflow

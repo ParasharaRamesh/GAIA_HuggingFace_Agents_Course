@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage, SystemMessage, RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
@@ -14,7 +15,7 @@ from tools.visual import read_image_and_encode
 # Logic to format messages for multimodal LLM understanding
 # This function will be used as a pre_model_hook to modify messages
 # before they are sent to the LLM during the agent's internal thought process.
-def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> Dict[str, Any]:
+def _format_messages_for_multimodal_llm(state: AgentState) -> Dict[str, Any]:
     """
     First, cleans agent messages using the common hook, then analyzes the message history,
     specifically looking for ToolMessage outputs that contain Base64 encoded image data.
@@ -35,7 +36,7 @@ def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> Dict[str
     """
     # Call the common cleaning hook first ---
     hook = create_clean_agent_messages_hook("visual")
-    input_state = hook(messages)
+    input_state = hook(state)
 
     cleaned_messages = input_state["messages"][1:]
     new_input = input_state["input"]
@@ -67,7 +68,7 @@ def _format_messages_for_multimodal_llm(messages: List[BaseMessage]) -> Dict[str
                     content=f"Image data received but could not be parsed: {message.content}")  # Modify cleaned_messages
 
     return {
-        "messages": [RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES), *cleaned_messages],
+        "messages": cleaned_messages,
         "input": new_input
     }
 

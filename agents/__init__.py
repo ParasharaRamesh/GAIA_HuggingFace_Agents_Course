@@ -2,6 +2,8 @@ import operator
 from typing import Literal, List, Dict, Any, Callable
 import re
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, RemoveMessage, AIMessage, ToolMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from agents.state import AgentState
 
 ''' util functions '''
 def create_type_string(typed_dict_class: type) -> str:
@@ -46,7 +48,7 @@ def create_type_string(typed_dict_class: type) -> str:
     return type_string
 
 
-def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMessage]], Dict[str, Any]]:
+def create_clean_agent_messages_hook(agent_name: str) -> Callable[[AgentState], Dict[str, Any]]:
     """
     Factory function to create a pre-model hook that cleans message history for a specific agent.
     It now explicitly handles extracting the supervisor's 'Action Input' as the effective
@@ -72,13 +74,12 @@ def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMess
                                                         that `create_react_agent` expects.
     """
 
-    def _clean_agent_messages_hook_instance(messages: List[BaseMessage]) -> Dict[str, Any]:
+    def _clean_agent_messages_hook_instance(state: AgentState) -> Dict[str, Any]:
         new_messages: List[BaseMessage] = []
 
         # 1. Collect the first SystemMessage if present
         system_msg = None
-        #TODO this is the weird thing! and why no system message?
-        messages = messages["messages"]
+        messages = state["messages"]
         for message in messages:
             if isinstance(message, SystemMessage):
                 system_msg = message
@@ -148,7 +149,7 @@ def create_clean_agent_messages_hook(agent_name: str) -> Callable[[List[BaseMess
         # Return the final cleaned message list AND the updated 'input' key.
         # Returning 'input' here tells LangGraph to merge this value into the state's 'input' field.
         return {
-            "messages": [RemoveMessage(id=RemoveMessage.REMOVE_ALL_MESSAGES), *new_messages],
+            "messages": new_messages,
             "input": delegated_content
         }
 
