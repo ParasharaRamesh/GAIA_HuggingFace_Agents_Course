@@ -5,7 +5,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langgraph_supervisor import create_supervisor
 
-from agents.state import AgentState
+from agents.state import GaiaState
 from agents.visual import create_visual_agent
 from agents.audio import create_audio_agent
 from agents.researcher import create_researcher_agent
@@ -13,14 +13,14 @@ from agents.interpreter import create_code_agent
 from agents.generic import create_generic_agent
 
 
-def extract_final_answer_hook(state: AgentState) -> dict:
+def extract_final_answer_hook(state: GaiaState) -> dict:
     """
     A post-model hook for the orchestrator (supervisor) agent.
     It inspects the last AI message in the 'messages' list of the AgentState
     for a "Final Answer:" pattern and extracts it into the 'final_answer' field.
 
     Args:
-        state (AgentState): The current state of the LangGraph workflow.
+        state (GaiaState): The current state of the LangGraph workflow.
 
     Returns:
         dict: A dictionary representing an update to the AgentState (e.g., {"final_answer": "..."}).
@@ -98,7 +98,7 @@ def create_master_orchestrator_workflow(
         agents=specialized_agents,
         model=orchestrator_llm,
         prompt=orchestrator_prompt_content,
-        state_schema=AgentState,
+        state_schema=GaiaState,
         post_model_hook=extract_final_answer_hook,
         output_mode="last_message",
         add_handoff_messages=False

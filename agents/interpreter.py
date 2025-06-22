@@ -6,7 +6,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
-from agents.state import AgentState
+from agents.state import GaiaState
 from tools.interpreter import read_file, write_file, run_shell_command, run_python_script
 from tools.search import web_search, web_scraper
 
@@ -103,7 +103,7 @@ def create_code_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="code",
         debug=True,
-        state_schema=AgentState,
+        state_schema=GaiaState,
         pre_model_hook=create_clean_agent_messages_hook("code")
     )
     return code_agent_runnable

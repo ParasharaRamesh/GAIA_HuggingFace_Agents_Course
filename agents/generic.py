@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
-from agents.state import AgentState
+from agents.state import GaiaState
 from tools.search import web_search, web_scraper
 
 
@@ -84,7 +84,7 @@ def create_generic_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="generic",
         debug=True,
-        state_schema=AgentState,
+        state_schema=GaiaState,
         pre_model_hook=create_clean_agent_messages_hook("generic")
     )
 

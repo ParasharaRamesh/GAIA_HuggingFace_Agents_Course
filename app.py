@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langfuse import get_client
 from agents.workflow import create_worfklow
 from tools.audio import model # this triggers the whisper model to be loaded
-from agents.state import AgentState
+from agents.state import GaiaState
 from langfuse.langchain import CallbackHandler #
 
 '''
@@ -60,7 +60,7 @@ class BasicAgent:
             # If a path is provided, embed it in the message for relevant agents e.g., "Analyze the image located at path/to/image.png: [original question]"
             full_input_content = f"Original query: {question} | Associated file path: {path}"
 
-        initial_state: AgentState = { # Explicitly type as AgentState
+        initial_state: GaiaState = { # Explicitly type as AgentState
             "input": full_input_content,
             "messages": [HumanMessage(content=full_input_content)],
             "final_answer": "",
@@ -72,7 +72,7 @@ class BasicAgent:
         try:
             # Invoke the workflow. We are using .invoke() here for simplicity
             # For streaming or more detailed progress, you might iterate over .stream()
-            final_state: AgentState = self.orchestrator_app.invoke(initial_state)
+            final_state: GaiaState = self.orchestrator_app.invoke(initial_state)
 
             # Extract the final answer from the state
             if final_state.get("final_answer"):

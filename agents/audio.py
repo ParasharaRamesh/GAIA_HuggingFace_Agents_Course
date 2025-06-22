@@ -8,7 +8,7 @@ from langgraph.prebuilt.chat_agent_executor import create_react_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from agents import create_clean_agent_messages_hook
-from agents.state import AgentState
+from agents.state import GaiaState
 # Import tools from tools/audio.py
 from tools.audio import transcribe_audio, get_youtube_transcript
 
@@ -80,7 +80,7 @@ def create_audio_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="audio",  # Ensure consistent naming
         debug=True,
-        state_schema=AgentState,
+        state_schema=GaiaState,
         pre_model_hook = create_clean_agent_messages_hook("audio")
     )
     return audio_agent_runnable

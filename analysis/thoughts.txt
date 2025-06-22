@@ -48,6 +48,9 @@ Important Links:
 
 TODO from here!:
 
+
+- bro just have a single agent with access to all tools!
+
+- just test it and see first!
 - new approach , custom handoff tools which add the Action Input delegated task in the input field and passes entire message as is + each agent has its own pre model hook which only trims the messages
-    - no Remove message used anywhere, the premodel hook trims messages which only the sub agent sees
-- the AgentState I have defined needs to inherit the original AgentState because the messages I have just plainly uses operator.add whereas the langgraph one uses some complex logic
+- existing premodel hook logic needs to only trim messages nothing else

@@ -8,14 +8,14 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
-from agents.state import AgentState
+from agents.state import GaiaState
 from tools.visual import read_image_and_encode
 
 
 # Logic to format messages for multimodal LLM understanding
 # This function will be used as a pre_model_hook to modify messages
 # before they are sent to the LLM during the agent's internal thought process.
-def _format_messages_for_multimodal_llm(state: AgentState) -> Dict[str, Any]:
+def _format_messages_for_multimodal_llm(state: GaiaState) -> Dict[str, Any]:
     """
     First, cleans agent messages using the common hook, then analyzes the message history,
     specifically looking for ToolMessage outputs that contain Base64 encoded image data.
@@ -154,7 +154,7 @@ def create_visual_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="visual",
         debug=True,
-        state_schema=AgentState,
+        state_schema=GaiaState,
         pre_model_hook=_format_messages_for_multimodal_llm
     )
 
