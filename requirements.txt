@@ -3,7 +3,6 @@ requests
 transformers
 langchain
 langfuse
-langgraph-supervisor
 langchain-community
 langchain-core
 langchain-huggingface
