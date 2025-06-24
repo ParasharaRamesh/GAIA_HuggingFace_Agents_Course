@@ -18,27 +18,31 @@ def find_last_tool_call_id(messages: list) -> str | None:
 
 # Nodes
 def router_node(state: GaiaState) -> dict:
-    """
-    This node prepares the state for the next agent's turn.
-    It sets the next agent's name and input, and clears old output.
-    """
     print("---ROUTER NODE---")
-    updates = {"subagent_output": None}  # Always clear the last output
-    last_message = state['messages'][-1]
+    updates = {"subagent_output": None}
 
-    if isinstance(last_message, AIMessage) and last_message.tool_calls:
-        tool_name = last_message.tool_calls[0]['name']
+    # Find the last AIMessage to get the tool call
+    last_ai_message = None
+    for message in reversed(state["messages"]):
+        if isinstance(message, AIMessage):
+            last_ai_message = message
+            break
 
-        # We can create a convention for our delegation tools
+    if last_ai_message and last_ai_message.tool_calls:
+        tool_call = last_ai_message.tool_calls[0]
+        tool_name = tool_call['name']
+
         if tool_name.startswith("delegate_to_"):
-            # This logic works for ANY agent, not just generic
             agent_name = tool_name.replace("delegate_to_", "").replace("_agent", "")
-            arguments = last_message.tool_calls[0]['args']
-
+            arguments = tool_call['args']
             print(f"  Delegating to '{agent_name}' with args: {arguments}")
             updates['current_agent_name'] = agent_name
-            # Pass the entire arguments dict. This future-proofs us for agents that might need a 'file_path' in addition to a 'query'.
             updates['subagent_input'] = arguments
+
+        elif tool_name == 'provide_final_answer':
+            final_answer = tool_call['args']['answer']
+            print(f"  Final answer provided by orchestrator.")
+            updates['final_answer'] = final_answer
 
     return updates
 
@@ -50,10 +54,10 @@ def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
     print(f"---SUB AGENT NODE: {agent_name}---")
 
     # Part A: Prepare the "Bubble" state for the sub-agent
-    task_input = state.get("subagent_input")
+    task_args = state.get("subagent_input")
     sub_agent_bubble_state = SubAgentState(
-        input=task_input,
-        messages=[HumanMessage(content=task_input)]
+        input=task_args,
+        messages=[HumanMessage(content=str(task_args))]
     )
     print(f"  Prepared bubble state for {agent_name}.")
 

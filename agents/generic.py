@@ -53,8 +53,7 @@ def create_generic_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="generic",
         debug=True,
-        state_schema=SubAgentState,
-        # pre_model_hook=create_clean_agent_messages_hook("generic") #TODO.x need to change this possibly
+        state_schema=SubAgentState
     )
 
     return generic_agent_runnable

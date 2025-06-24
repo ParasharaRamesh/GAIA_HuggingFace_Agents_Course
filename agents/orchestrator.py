@@ -49,7 +49,7 @@ def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
         prompt=orchestrator_prompt,
         name="orchestrator",
         debug=True,
-        state_schema=GaiaState,
+        state_schema=GaiaState
     )
 
     return orchestrator_agent_runnable
