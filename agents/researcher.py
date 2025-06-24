@@ -3,10 +3,10 @@ import os
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.language_models import BaseChatModel
-from langgraph.prebuilt.chat_agent_executor import create_react_agent
+from langgraph.prebuilt.chat_agent_executor import create_react_agent, AgentState
 
+from agents.state import SubAgentState
 from tools.search_tools import web_search, wikipedia_search, arxiv_search, web_scraper
-from agents.state import *
 
 def create_researcher_agent(llm: BaseChatModel):
     """

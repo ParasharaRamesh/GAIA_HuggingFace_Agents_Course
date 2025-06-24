@@ -17,7 +17,8 @@ def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
     # These are the "delegation tools" that instruct the orchestrator how to route
     tools = [
         delegate_to_generic_agent,
-        provide_final_answer, # The orchestrator can also provide a final answer directly
+        delegate_to_researcher_agent,
+        provide_final_answer
     ]
 
     # 2. Load the orchestrator prompt

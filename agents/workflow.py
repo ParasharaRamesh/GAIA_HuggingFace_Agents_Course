@@ -2,7 +2,9 @@ from functools import partial
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import StateGraph, END
+from langgraph.prebuilt.chat_agent_executor import AgentState
 
+from agents.researcher import create_researcher_agent
 from agents.state import GaiaState, SubAgentState
 from agents.generic import create_generic_agent
 from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm
@@ -56,17 +58,22 @@ def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
     """
     print(f"---SUB AGENT NODE: {agent_name}---")
 
-    # Part A: Prepare the "Bubble" state for the sub-agent
-    task_args = state.get("subagent_input")
-    sub_agent_bubble_state = SubAgentState(
-        input=task_args,
-        messages=[HumanMessage(content=str(task_args))]
-    )
-    print(f"  Prepared bubble state for {agent_name}.")
+    # 1. Get the dictionary of arguments
+    task_args = state.get("subagent_input", {})
 
-    # Part B: Execute the Agent
+    # 2. Format the dictionary into our custom string
+    formatted_input_string = " | ".join([f"{key}=>'{value}'" for key, value in task_args.items()])
+
+    # 3. Create the bubble state, passing the formatted string to the 'input' key
+    sub_agent_bubble_state = SubAgentState(
+        input=formatted_input_string,
+        messages=[HumanMessage(content=formatted_input_string)]
+    )
+    print(f"Prepared bubble state for {agent_name} with formatted input: {formatted_input_string}")
+
+    # 4. Invoke the agent with the full state object
     final_sub_agent_state = agent_runnable.invoke(sub_agent_bubble_state)
-    print(f"  {agent_name} agent finished execution.")
+    print(f" {agent_name} agent finished execution.")
 
     # Part C: Process the Result & Clean Up
     final_answer = final_sub_agent_state['messages'][-1].content
@@ -136,7 +143,7 @@ def create_worfklow():
     workflow.add_edge("generic", "orchestrator")
 
     # researcher
-    researcher_agent = create_researcher_llm(researcher_llm)
+    researcher_agent = create_researcher_agent(researcher_llm)
     researcher_agent_node_func = partial(
         sub_agent_node,
         agent_runnable=researcher_agent,

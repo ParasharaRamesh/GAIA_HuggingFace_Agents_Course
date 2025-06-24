@@ -7,13 +7,13 @@ from duckduckgo_search import DDGS
 
 
 @tool
-def web_search(query: str, max_results: int = 5) -> Dict[str, List[Dict[str, str]]]:
+def web_search(query: str, max_results: int = 3) -> Dict[str, List[Dict[str, str]]]:
     """
     Search the web using DuckDuckGo and return a formatted list of results.
 
     Args:
         query: The search query.
-        max_results: Number of results to retrieve (default 5).
+        max_results: Number of results to retrieve (default 3).
 
     Returns:
         A dictionary with a single key 'web_results'.
@@ -132,7 +132,7 @@ def web_scraper(urls: List[str]) -> Dict[str, Dict[str, Any]]:
     for doc in docs:
         url = doc.metadata.get("source", "unknown_url")
         results[url] = {
-            "content": doc.page_content,
+            "content": doc.page_content[:12000], #only use 12000 chars
             "metadata": doc.metadata
         }
 
