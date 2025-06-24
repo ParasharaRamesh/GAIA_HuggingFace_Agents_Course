@@ -6,22 +6,21 @@ from agents import *
 @tool(return_direct=True)
 def delegate_to_generic_agent(query: str) -> str:
     """
-    Delegates the task to the 'generic' agent. Use this as a default when no other
-    specialized agent is a clear fit, or for general information, text generation,
-    or cross-referencing where other agents might have struggled.
-    The 'query' should be a clear, self-contained instruction for the generic agent.
+    Use this for simple, general, or conversational questions.
+    **DO NOT use this for any questions that involve academic papers, scientific research, financial analysis, or deep factual lookups.**
+    For those, you MUST use the 'delegate_to_researcher_agent'.
     """
-    return f"Delegating to generic agent with {query = }"
+    return f"Delegating to generic agent with query: {query}"
+
 
 @tool(return_direct=True)
 def delegate_to_researcher_agent(query: str) -> str:
     """
-    Delegates the task to the 'researcher' agent. Use this for tasks that
-    require deep research, fact-checking, or looking up scientific papers
-    on Arxiv and Wikipedia.
-    The 'query' should be a clear, self-contained instruction.
+    Use this for any task that requires deep research, fact-checking, or looking up information in scientific papers from Arxiv or articles from Wikipedia.
+    **This is the ONLY tool for academic or research-related questions.**
+    If the user asks about a paper, a specific verifiable fact, or a complex topic, you MUST use this tool.
     """
-    return f"Delegating to researcher agent with {query = }"
+    return f"Delegating to researcher agent with query: {query}"
 
 @tool(return_direct=True)
 def provide_final_answer(answer: str) -> str:
