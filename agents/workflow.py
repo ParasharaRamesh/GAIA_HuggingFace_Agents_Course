@@ -1,321 +1,137 @@
-import os
-from typing import Optional
+from functools import partial
 
-from langchain_community.llms.huggingface_hub import HuggingFaceHub
-from langchain_core.language_models import BaseChatModel
-from langchain_core.utils.utils import secret_from_env
-from langchain_huggingface.chat_models import ChatHuggingFace
-from pydantic import SecretStr, Field
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph import StateGraph, END
 
-from agents.orchestrator import create_master_orchestrator_workflow
-from langchain.chat_models import init_chat_model
-from langchain_openai import ChatOpenAI  # For OpenRouter (using OpenAI compatible API)
-from langchain_groq import ChatGroq  # For Groq
+from agents.state import GaiaState, SubAgentState
+from agents.generic import create_generic_agent
+from agents.llm import create_orchestrator_llm, create_generic_llm
+from agents.orchestrator import create_orchestrator_agent
 
-# Load environment variables (ensure .env file is present or keys are set globally)
-from dotenv import load_dotenv
+# Helper functions
+def find_last_tool_call_id(messages: list) -> str | None:
+    """Finds the ID of the last tool call in the message history."""
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            return msg.tool_calls[0]['id']
+    return None
 
-load_dotenv()
+# Nodes
+def router_node(state: GaiaState) -> dict:
+    """
+    This node prepares the state for the next agent's turn.
+    It sets the next agent's name and input, and clears old output.
+    """
+    print("---ROUTER NODE---")
+    updates = {"subagent_output": None}  # Always clear the last output
+    last_message = state['messages'][-1]
 
-# Custom ChatOpenRouter class
-class ChatOpenRouter(ChatOpenAI):
-    openai_api_key: Optional[SecretStr] = Field(
-        alias="api_key", default_factory=secret_from_env("OPENROUTER_API_KEY", default=None)
+    if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        tool_name = last_message.tool_calls[0]['name']
+
+        # We can create a convention for our delegation tools
+        if tool_name.startswith("delegate_to_"):
+            # This logic works for ANY agent, not just generic
+            agent_name = tool_name.replace("delegate_to_", "").replace("_agent", "")
+            arguments = last_message.tool_calls[0]['args']
+
+            print(f"  Delegating to '{agent_name}' with args: {arguments}")
+            updates['current_agent_name'] = agent_name
+            # Pass the entire arguments dict. This future-proofs us for agents that might need a 'file_path' in addition to a 'query'.
+            updates['subagent_input'] = arguments
+
+    return updates
+
+def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
+    """
+    This node function manages the execution of a sub-agent.
+    It creates an isolated environment, runs the agent, and processes its output.
+    """
+    print(f"---SUB AGENT NODE: {agent_name}---")
+
+    # Part A: Prepare the "Bubble" state for the sub-agent
+    task_input = state.get("subagent_input")
+    sub_agent_bubble_state = SubAgentState(
+        input=task_input,
+        messages=[HumanMessage(content=task_input)]
     )
-    @property
-    def lc_secrets(self) -> dict[str, str]:
-        return {"openai_api_key": "OPENROUTER_API_KEY"}
+    print(f"  Prepared bubble state for {agent_name}.")
 
-    def __init__(self,
-                 openai_api_key: Optional[str] = None,
-                 **kwargs):
-        openai_api_key = openai_api_key or os.environ.get("OPENROUTER_API_KEY")
-        super().__init__(base_url="https://openrouter.ai/api/v1", openai_api_key=openai_api_key, **kwargs)
+    # Part B: Execute the Agent
+    final_sub_agent_state = agent_runnable.invoke(sub_agent_bubble_state)
+    print(f"  {agent_name} agent finished execution.")
 
+    # Part C: Process the Result & Clean Up
+    final_answer = final_sub_agent_state['messages'][-1].content
+    tool_call_id = find_last_tool_call_id(state['messages'])
 
-# --- Helper Functions to Instantiate LLMs from Providers ---
-def _try_init_llm(provider: str, model_id: str, **kwargs) -> BaseChatModel | None:
+    # Create the ToolMessage report for the orchestrator
+    report_message = ToolMessage(
+        content=final_answer,
+        tool_call_id=tool_call_id
+    )
+    print("Prepared report for orchestrator.")
+
+    # Return all updates to the main state
+    return {
+        "messages": [report_message],
+        "subagent_output": final_answer,
+        "current_agent_name": None, # Clear name
+        "subagent_input": None      # Clear input
+    }
+
+#Routing functions
+def route_by_agent_name(state: GaiaState) -> str:
     """
-    Attempts to instantiate an LLM using init_chat_model for a given provider and model.
-    Handles API key retrieval and prints success/failure messages.
+    Determines the next step after the orchestrator has run by inspecting the agent state
     """
-    print(f"using init llm method: {model_id} @ {provider}")
-    api_key_env_var = ""
-    if provider == "huggingface": #This doesnt work
-        api_key_env_var = "HF_TOKEN"
-    elif provider == "openai" or provider == "openrouter":  # OpenRouter uses 'openai' provider string
-        api_key_env_var = "OPENROUTER_API_KEY"
-    elif provider == "groq":
-        api_key_env_var = "GROQ_API_KEY"
+    if next_agent := state.get("current_agent_name"):
+        print(f"Routing to agent: {next_agent}")
+        return next_agent
+    else:
+        print("No agent designated. Ending workflow.")
+        return END
 
-    api_key = os.getenv(api_key_env_var)
-    if not api_key:
-        print(f"Warning: {api_key_env_var} not found for {provider.capitalize()} LLM.")
-        return None
-
-    try:
-        # Pass API key directly in kwargs based on provider
-        if provider == "huggingface":
-            kwargs["huggingfacehub_api_token"] = api_key
-        elif provider == "openai" or provider == "openrouter":  # For OpenRouter, use openai provider string
-            kwargs["api_key"] = api_key
-        elif provider == "groq":
-            kwargs["groq_api_key"] = api_key
-
-        llm = init_chat_model(
-            model=model_id,
-            model_provider=provider if provider != "openrouter" else "openai",  # Use 'openai' for OpenRouter
-            temperature=0.3,
-            max_tokens=512,
-            **kwargs
-        )
-        print(f"Successfully instantiated {provider.capitalize()} LLM: {model_id}")
-        return llm
-    except Exception as e:
-        print(f"Failed to instantiate {provider.capitalize()} LLM {model_id}: {e}")
-        return None
-
-
-def _create_hf_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel | None:
-    """Attempts to instantiate a ChatHuggingFace LLM that supports bind_tools."""
-    if use_init_llm:
-        # this doesnt work!
-        return _try_init_llm("huggingface", model_id)
-
-    hf_token = os.getenv("HF_TOKEN")  # Or HUGGINGFACEHUB_API_TOKEN
-    if not hf_token:
-        print("HF_TOKEN not found for HuggingFace LLM.")
-        return None
-    try:
-        llm_hub = HuggingFaceHub(
-            repo_id=model_id,
-            model_kwargs={"temperature": 0.3, "max_new_tokens": 512},
-            huggingfacehub_api_token=hf_token
-        )
-
-        llm = ChatHuggingFace(llm=llm_hub, verbose=True)
-
-        print(f"Successfully instantiated HuggingFace LLM: {model_id}")
-        return llm
-    except Exception as e:
-        print(f"Failed to instantiate HuggingFace LLM {model_id}: {e}")
-        return None
-
-
-def _create_openrouter_llm(model_id: str, use_init_llm: bool = False) -> BaseChatModel | None:
-    """Attempts to instantiate an OpenRouter LLM using ChatOpenAI."""
-    if use_init_llm:
-        return _try_init_llm("openrouter", model_id)
-
-    # alternative method
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if not openrouter_key:
-        print("OPENROUTER_API_KEY not found for OpenRouter LLM.")
-        return None
-    try:
-        llm = ChatOpenRouter(
-            model_name=model_id,
-            temperature=0.3,
-            max_tokens=512
-        )
-        print(f"Successfully instantiated OpenRouter LLM: {model_id}")
-        return llm
-    except Exception as e:
-        print(f"Failed to instantiate OpenRouter LLM {model_id}: {e}")
-        return None
-
-
-def _create_groq_llm(model_id: str, use_init_llm: bool = True) -> BaseChatModel | None:
-    if use_init_llm:
-        return _try_init_llm("groq", model_id)
-
-    # alternative method
-    """Attempts to instantiate a Groq LLM."""
-    groq_key = os.getenv("GROQ_API_KEY")
-    if not groq_key:
-        print("GROQ_API_KEY not found for Groq LLM.")
-        return None
-    try:
-        llm = ChatGroq(
-            model_name=model_id,
-            groq_api_key=groq_key,
-            temperature=0.3,
-            max_tokens=512
-        )
-        print(f"Successfully instantiated Groq LLM: {model_id}")
-        return llm
-    except Exception as e:
-        print(f"Failed to instantiate Groq LLM {model_id}: {e}")
-        return None
-
-
-# LLM Initializations
-def create_orchestrator_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    # Try HuggingFace first
-    if use_hf:
-        llm = _create_hf_llm("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
-        if llm: return llm
-        print("~"*60)
-
-    # Then OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Finally Groq
-    if use_groq:
-        llm = _create_groq_llm("deepseek-r1-distill-llama-70b")
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Orchestrator LLM from any provider.")
-
-
-def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    # HuggingFace (some multi-modal models like Llava might be available as endpoints)
-    if use_hf:
-        llm = _create_hf_llm(
-            "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
-        if llm: return llm
-        print("~"*60)
-
-    # OpenRouter (often has access to multi-modal models)
-    if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-4-maverick:free")  # Example, check OpenRouter's list for actual ID
-        # google/gemma-3-27b-it:free also works
-        if llm: return llm
-        print("~"*60)
-
-    # Fallback if no multi-modal found: a generic LLM (won't handle images directly)
-    print("Warning: No multi-modal LLM found for Visual Agent. Falling back to generic LLM.")
-    return create_generic_llm()  # Fallback to a generic text-only LLM
-
-
-def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    # HuggingFace
-    if use_hf:
-        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-        if llm: return llm
-        print("~"*60)
-
-    # OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Audio LLM from any provider.")
-
-
-def create_researcher_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    """Researcher: Some normal LLM (can be the same as audio/generic)."""
-    # HuggingFace
-    if use_hf:
-        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-        if llm: return llm
-        print("~"*60)
-
-    # OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-70b-instruct:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Audio LLM from any provider.")
-
-
-def create_interpreter_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    """Code: Some LLM for coding tasks."""
-    # Prioritize HuggingFace for code models
-    if use_hf:
-        llm = _create_hf_llm("Qwen/Qwen2.5-Coder-32B-Instruct")
-        if llm: return llm
-        print("~"*60)
-
-    # Then try OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("mistralai/devstral-small:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Finally Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen-qwq-32b")
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Code Interpreter LLM from any provider.")
-
-
-def create_generic_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    """Generic: Some normal free LLM."""
-    # HuggingFace
-    if use_hf:
-        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-        if llm: return llm
-        print("~"*60)
-
-    # OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Audio LLM from any provider.")
-
-
+# Entire workflow
 def create_worfklow():
     try:
         orchestrator_llm = create_orchestrator_llm()
         print("Orchestrator LLM initialized\n")
 
-        visual_llm = create_visual_llm()
-        print("Visual LLM initialized\n")
-
-        audio_llm = create_audio_llm()
-        print("Audio LLM initialized\n")
-
-        researcher_llm = create_researcher_llm()
-        print("Researcher LLM initialized\n")
-
-        interpreter_llm = create_interpreter_llm()
-        print("Code Interpreter LLM initialized\n")
-
         generic_llm = create_generic_llm()
         print("Generic LLM initialized.\n")
+
+        #TODO. introduce other LLMs later on
     except Exception as e:
         print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
-        # You might want to raise the exception or handle it more gracefully
         raise
 
-    # --- Create the Master Orchestrator Workflow ---
-    print("Creating master orchestrator workflow...")
-    orchestrator_compiled_app = create_master_orchestrator_workflow(
-        orchestrator_llm=orchestrator_llm,
-        visual_llm=visual_llm,
-        audio_llm=audio_llm,
-        researcher_llm=researcher_llm,
-        interpreter_llm=interpreter_llm,
-        generic_llm=generic_llm,
-    ).compile()
+    workflow = StateGraph(GaiaState)
 
-    return orchestrator_compiled_app
+    orchestrator_agent = create_orchestrator_agent(orchestrator_llm)
+    workflow.add_node("orchestrator", orchestrator_agent)
+    workflow.set_entry_point("orchestrator")
+
+    workflow.add_node("router", router_node)
+
+    generic_agent = create_generic_agent(generic_llm)
+    generic_agent_node_func = partial(
+        sub_agent_node,
+        agent_runnable=generic_agent,
+        agent_name="generic"
+    )
+    workflow.add_node("generic", generic_agent_node_func)
+
+    # add edges
+    workflow.add_edge("orchestrator", "router")  # Orchestrator always goes to the router node
+    workflow.add_conditional_edges(
+        "router",  # The router node then decides the path
+        route_by_agent_name,
+        {"generic": "generic", END: END}
+    )
+
+    workflow.add_edge("generic", "orchestrator")
+
+    app = workflow.compile()
+    print("LangGraph workflow compiled successfully.")
+    return app

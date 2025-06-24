@@ -32,7 +32,7 @@ class GaiaState(AgentState):
 # Define the isolated state for each sub-agent
 class SubAgentState(AgentState):
     """
-Represents the isolated state for a sub-agent's internal ReAct loop.
+    Represents the isolated state for a sub-agent's internal ReAct loop.
     This state is only visible to the sub-agent during its execution and
     is designed to be compatible with LangGraph's `create_react_agent`.
 

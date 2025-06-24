@@ -1,79 +1,24 @@
+# agents/orchestrator.py
+
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langgraph.prebuilt import create_react_agent
+
+from agents import *
 import os
-import re
-
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
-from langgraph_supervisor import create_supervisor
+from tools.orchestrator_tools import *
 
-from agents.state import GaiaState
-from agents.visual import create_visual_agent
-from agents.audio import create_audio_agent
-from agents.researcher import create_researcher_agent
-from agents.interpreter import create_code_agent
-from agents.generic import create_generic_agent
-
-
-def extract_final_answer_hook(state: GaiaState) -> dict:
+def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
     """
-    A post-model hook for the orchestrator (supervisor) agent.
-    It inspects the last AI message in the 'messages' list of the AgentState
-    for a "Final Answer:" pattern and extracts it into the 'final_answer' field.
-
-    Args:
-        state (GaiaState): The current state of the LangGraph workflow.
-
-    Returns:
-        dict: A dictionary representing an update to the AgentState (e.g., {"final_answer": "..."}).
-              Returns an empty dict if no final answer is found, indicating no state update.
+    Creates and returns a LangChain ReAct orchestrator agent (Runnable).
+    This agent's role is to analyze the user's request and delegate tasks
+    to specialized sub-agents using specific "delegation tools".
     """
-    messages = state.get("messages", [])  # Access messages from the state
-    if not messages:
-        return {}
-
-    # The last message is the supervisor's output that we need to inspect
-    last_message = messages[-1]
-
-    if isinstance(last_message, AIMessage):
-        content = last_message.content
-        if content:
-            # Use regex to find "Final Answer:" (case-insensitive) anywhere in the content
-            # and capture everything after it. re.DOTALL makes '.' match newlines too.
-            match = re.search(r"final answer:(.*)", content, re.IGNORECASE | re.DOTALL)
-            if match:
-                final_answer_content = match.group(1).strip()
-                print(f"DEBUG: Final answer extracted by hook: {final_answer_content}")  # For debugging
-                return {"final_answer": final_answer_content}  # Return the update for the 'final_answer' field
-    return {}  # No updat
-
-
-def create_master_orchestrator_workflow(
-        orchestrator_llm: BaseChatModel,
-        visual_llm: BaseChatModel,
-        audio_llm: BaseChatModel,  # Corrected type hint
-        researcher_llm: BaseChatModel,
-        interpreter_llm: BaseChatModel,
-        generic_llm: BaseChatModel,
-):
-    """
-    Creates and returns the main LangGraph workflow orchestrated by a supervisor.
-    This supervisor acts as the central planner, delegating tasks to specialized agents.
-    Each agent receives its own dedicated LLM instance for maximum flexibility.
-    The workflow utilizes the shared AgentState and populates its 'final_answer' field
-    via a post-model hook when the orchestrator provides the final response.
-    """
-    # 1. Instantiate specialized agents, passing their specific LLM
-    generic = create_generic_agent(llm=generic_llm)  # Corrected parameter name to 'llm'
-    audio = create_audio_agent(llm=audio_llm)
-    researcher = create_researcher_agent(llm=researcher_llm)
-    code = create_code_agent(llm=interpreter_llm)
-    visual = create_visual_agent(llm=visual_llm)
-
-    specialized_agents = [
-        visual,
-        audio,
-        researcher,
-        code,
-        generic
+    # 1. Define the tools available to the Orchestrator
+    # These are the "delegation tools" that instruct the orchestrator how to route
+    tools = [
+        delegate_to_generic_agent,
+        provide_final_answer, # The orchestrator can also provide a final answer directly
     ]
 
     # 2. Load the orchestrator prompt
@@ -81,27 +26,30 @@ def create_master_orchestrator_workflow(
     prompts_dir = os.path.join(current_dir, '..', 'prompts')
     orchestrator_prompt_path = os.path.join(prompts_dir, 'orchestrator_prompt.txt')
 
-    orchestrator_prompt_content = ""
-    try:
-        with open(orchestrator_prompt_path, "r", encoding="utf-8") as f:
-            orchestrator_prompt_content = f.read()
-    except FileNotFoundError:
-        print(f"Error: Orchestrator prompt file not found at {orchestrator_prompt_path}")
-        orchestrator_prompt_content = (
-            "You are a master orchestrator managing a team of specialized experts."
-            "Available agents: {agent_names}. Delegate tasks and provide a final answer when the overall goal is achieved."
-            "\n\n{input}\nThought:{agent_scratchpad}"
-        )
+    with open(orchestrator_prompt_path, "r", encoding="utf-8") as f:
+        orchestrator_prompt_content = f.read()
 
-    # 3. Create the supervisor workflow
-    workflow = create_supervisor(
-        agents=specialized_agents,
+    # 3. Create the ChatPromptTemplate using from_messages
+    orchestrator_prompt = ChatPromptTemplate.from_messages([
+        # 1. System Message: Sets the orchestrator's persona and core instructions.
+        SystemMessage(content=orchestrator_prompt_content),
+
+        # 2. MessagesPlaceholder: LangGraph injects historical messages here.
+        #    We'll use a pre-model hook to manage these for the orchestrator.
+        MessagesPlaceholder(variable_name="messages"),
+
+        # 3. Human Message: Contains the initial input and orchestrator's scratchpad.
+        HumanMessage(content="{input}\nThought:{agent_scratchpad}")
+    ])
+
+    # 4. Create the ReAct orchestrator agent executor
+    orchestrator_agent_runnable = create_react_agent(
         model=orchestrator_llm,
-        prompt=orchestrator_prompt_content,
+        tools=tools,
+        prompt=orchestrator_prompt,
+        name="orchestrator",
+        debug=True,
         state_schema=GaiaState,
-        post_model_hook=extract_final_answer_hook,
-        output_mode="last_message",
-        add_handoff_messages=False
     )
 
-    return workflow
+    return orchestrator_agent_runnable

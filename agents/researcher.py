@@ -6,8 +6,8 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
-from tools.search import web_search, wikipedia_search, arxiv_search, web_scraper
-from agents.state import GaiaState
+from tools.search_tools import web_search, wikipedia_search, arxiv_search, web_scraper
+from agents.state import *
 
 def create_researcher_agent(llm: BaseChatModel):
     """
@@ -75,7 +75,7 @@ def create_researcher_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="researcher",  # Ensure consistent naming
         debug=True,
-        state_schema=GaiaState,
+        state_schema=SubAgentState,
         pre_model_hook= create_clean_agent_messages_hook("researcher")
     )
     return researcher_agent_runnable

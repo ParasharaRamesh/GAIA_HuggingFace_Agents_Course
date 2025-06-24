@@ -48,9 +48,9 @@ Important Links:
 
 TODO from here!:
 
-
-- bro just have a single agent with access to all tools!
-
-- just test it and see first!
-- new approach , custom handoff tools which add the Action Input delegated task in the input field and passes entire message as is + each agent has its own pre model hook which only trims the messages
-- existing premodel hook logic needs to only trim messages nothing else
+. new approach my own multi agent,
+. change state to add subagent input and output,
+. for each sub agent we can add pre model hooks
+. we define our own graph and workflow and inthat we get the output and add it back to the state
+. we just two orchestrator and another sub agent at a time and then later integrate everything.
+. or worst case just have a single agent with access to all tools!

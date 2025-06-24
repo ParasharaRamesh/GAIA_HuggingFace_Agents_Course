@@ -9,15 +9,10 @@ import uuid
 from langchain_core.messages import HumanMessage, AIMessage
 from langfuse import get_client
 from agents.workflow import create_worfklow
-from tools.audio import model # this triggers the whisper model to be loaded
+from tools.audio_tools import model # this triggers the whisper model to be loaded
 from agents.state import GaiaState
 from langfuse.langchain import CallbackHandler #
 
-'''
-TODO.x
-1. keep a global agent variable?
-
-'''
 
 # (Keep Constants as is)
 # --- Constants ---

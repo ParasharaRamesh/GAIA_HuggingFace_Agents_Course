@@ -8,8 +8,8 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents import create_clean_agent_messages_hook
-from agents.state import GaiaState
-from tools.visual import read_image_and_encode
+from agents.state import *
+from tools.visual_tools import read_image_and_encode
 
 
 # Logic to format messages for multimodal LLM understanding
@@ -154,7 +154,7 @@ def create_visual_agent(llm: BaseChatModel):
         prompt=react_prompt,
         name="visual",
         debug=True,
-        state_schema=GaiaState,
+        state_schema=SubAgentState,
         pre_model_hook=_format_messages_for_multimodal_llm
     )
 
