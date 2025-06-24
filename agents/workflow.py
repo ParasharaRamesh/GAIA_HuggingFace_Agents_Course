@@ -120,12 +120,12 @@ def create_worfklow():
 
     workflow = StateGraph(GaiaState)
 
+    # orchestrator
     orchestrator_agent = create_orchestrator_agent(orchestrator_llm)
     workflow.add_node("orchestrator", orchestrator_agent)
     workflow.set_entry_point("orchestrator")
 
-    workflow.add_node("router", router_node)
-
+    # generic
     generic_agent = create_generic_agent(generic_llm)
     generic_agent_node_func = partial(
         sub_agent_node,
@@ -133,7 +133,9 @@ def create_worfklow():
         agent_name="generic"
     )
     workflow.add_node("generic", generic_agent_node_func)
+    workflow.add_edge("generic", "orchestrator")
 
+    # researcher
     researcher_agent = create_researcher_llm(researcher_llm)
     researcher_agent_node_func = partial(
         sub_agent_node,
@@ -141,9 +143,13 @@ def create_worfklow():
         agent_name="researcher"
     )
     workflow.add_node("researcher", researcher_agent_node_func)
+    workflow.add_edge("researcher", "orchestrator")
 
-    # add edges
-    workflow.add_edge("orchestrator", "router")  # Orchestrator always goes to the router node
+    # router
+    workflow.add_node("router", router_node)
+    workflow.add_edge("orchestrator", "router")
+
+    # conditional edges
     workflow.add_conditional_edges(
         "router",
         route_by_agent_name,
@@ -153,9 +159,6 @@ def create_worfklow():
             END: END
         }
     )
-
-    workflow.add_edge("generic", "orchestrator")
-    workflow.add_edge("researcher", "orchestrator")
 
     app = workflow.compile()
     print("LangGraph workflow compiled successfully.")
