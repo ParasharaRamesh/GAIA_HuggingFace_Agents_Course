@@ -12,6 +12,7 @@ from agents.llm import create_orchestrator_llm, create_generic_llm, create_resea
     create_visual_llm
 from agents.orchestrator import create_orchestrator_agent
 from agents.visual import create_visual_agent
+from tools.visual_tools import read_image_and_encode
 
 
 # Helper functions
@@ -61,28 +62,16 @@ def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
     """
     print(f"---SUB AGENT NODE: {agent_name}---")
 
-    # 1. Get the dictionary of arguments
     task_args = state.get("subagent_input", {})
+    final_answer = ""
 
-    # 2. Format the dictionary into our custom string
-    formatted_input_string = " | ".join([f"{key}=>'{value}'" for key, value in task_args.items()])
+    if agent_name == 'visual':
+        final_answer = pre_visual_state_logic(agent_runnable, task_args)
+    else:
+        final_answer = pre_subagent_state_logic(agent_name, agent_runnable, task_args)
 
-    # 3. Create the bubble state, passing the formatted string to the 'input' key
-    sub_agent_bubble_state = SubAgentState(
-        input=formatted_input_string,
-        messages=[HumanMessage(content=formatted_input_string)]
-    )
-    print(f"Prepared bubble state for {agent_name} with formatted input: {formatted_input_string}")
-
-    # 4. Invoke the agent with the full state object
-    final_sub_agent_state = agent_runnable.invoke(sub_agent_bubble_state)
     print(f" {agent_name} agent finished execution.")
-
-    # Part C: Process the Result & Clean Up
-    final_answer = final_sub_agent_state['messages'][-1].content
     tool_call_id = find_last_tool_call_id(state['messages'])
-
-    # Create the ToolMessage report for the orchestrator
     report_message = ToolMessage(
         content=final_answer,
         tool_call_id=tool_call_id
@@ -96,6 +85,43 @@ def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
         "current_agent_name": None,  # Clear name
         "subagent_input": None  # Clear input
     }
+
+
+def pre_subagent_state_logic(agent_name, agent_runnable, task_args):
+    formatted_input_string = " | ".join([f"{key}=>'{value}'" for key, value in task_args.items()])
+    sub_agent_bubble_state = SubAgentState(
+        input=formatted_input_string,
+        messages=[HumanMessage(content=formatted_input_string)]
+    )
+    print(f"Prepared bubble state for {agent_name} with formatted input: {formatted_input_string}")
+    final_sub_agent_state = agent_runnable.invoke(sub_agent_bubble_state)
+    final_answer = final_sub_agent_state['messages'][-1].content
+    return final_answer
+
+
+def pre_visual_state_logic(agent_runnable, task_args):
+    print("  Handling special case for visual agent.")
+    query = task_args.get('query', 'Describe this image.')
+    file_path = task_args.get('file_path')
+    if not file_path:
+        final_answer = "Error: No file_path provided for visual agent."
+    else:
+        encoded_image = read_image_and_encode(file_path)  #
+
+        if "Error:" in encoded_image:
+            final_answer = encoded_image
+        else:
+            multimodal_message = HumanMessage(
+                content=[
+                    {"type": "text", "text": query},
+                    {"type": "image_url", "image_url": {"url": encoded_image}}
+                ]
+            )
+            # Invoke the simple LLM chain directly with the multimodal message
+            response_message = agent_runnable.invoke([multimodal_message])
+            final_answer = response_message.content
+
+    return final_answer
 
 
 # Routing functions
