@@ -170,24 +170,50 @@ def create_orchestrator_llm(use_hf: bool = False, use_or: bool = True, use_groq:
     raise ValueError("Failed to instantiate Orchestrator LLM from any provider.")
 
 
-def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    # HuggingFace (some multi-modal models like Llava might be available as endpoints)
+def create_generic_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
+    """Generic: Some normal free LLM."""
+    # HuggingFace
     if use_hf:
-        llm = _create_hf_llm(
-            "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
+        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
         if llm: return llm
         print("~"*60)
 
-    # OpenRouter (often has access to multi-modal models)
+    # OpenRouter
     if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-4-maverick:free")  # Example, check OpenRouter's list for actual ID
-        # google/gemma-3-27b-it:free also works
+        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
         if llm: return llm
         print("~"*60)
 
-    # Fallback if no multi-modal found: a generic LLM (won't handle images directly)
-    print("Warning: No multi-modal LLM found for Visual Agent. Falling back to generic LLM.")
-    return create_generic_llm()  # Fallback to a generic text-only LLM
+    # Groq
+    if use_groq:
+        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
+        if llm: return llm
+        print("~"*60)
+
+    raise ValueError("Failed to instantiate Audio LLM from any provider.")
+
+
+def create_researcher_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
+    """Researcher: Some normal LLM (can be the same as audio/generic)."""
+    # HuggingFace
+    if use_hf:
+        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
+        if llm: return llm
+        print("~"*60)
+
+    # OpenRouter
+    if use_or:
+        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
+        if llm: return llm
+        print("~"*60)
+
+    # Groq
+    if use_groq:
+        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
+        if llm: return llm
+        print("~"*60)
+
+    raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
 
 def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
@@ -212,27 +238,24 @@ def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool =
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
 
-def create_researcher_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    """Researcher: Some normal LLM (can be the same as audio/generic)."""
-    # HuggingFace
+def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
+    # HuggingFace (some multi-modal models like Llava might be available as endpoints)
     if use_hf:
-        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
+        llm = _create_hf_llm(
+            "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
         if llm: return llm
         print("~"*60)
 
-    # OpenRouter
+    # OpenRouter (often has access to multi-modal models)
     if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-70b-instruct:free")
+        llm = _create_openrouter_llm("meta-llama/llama-4-maverick:free")  # Example, check OpenRouter's list for actual ID
+        # google/gemma-3-27b-it:free also works
         if llm: return llm
         print("~"*60)
 
-    # Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Audio LLM from any provider.")
+    # Fallback if no multi-modal found: a generic LLM (won't handle images directly)
+    print("Warning: No multi-modal LLM found for Visual Agent. Falling back to generic LLM.")
+    return create_generic_llm()  # Fallback to a generic text-only LLM
 
 
 def create_interpreter_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
@@ -256,27 +279,4 @@ def create_interpreter_llm(use_hf: bool = False, use_or: bool = True, use_groq: 
         print("~"*60)
 
     raise ValueError("Failed to instantiate Code Interpreter LLM from any provider.")
-
-
-def create_generic_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
-    """Generic: Some normal free LLM."""
-    # HuggingFace
-    if use_hf:
-        llm = _create_hf_llm("Qwen/QwQ-32B")  # A good general-purpose model
-        if llm: return llm
-        print("~"*60)
-
-    # OpenRouter
-    if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
-        if llm: return llm
-        print("~"*60)
-
-    # Groq
-    if use_groq:
-        llm = _create_groq_llm("qwen/qwen3-32b")  # Groq's fast Llama3
-        if llm: return llm
-        print("~"*60)
-
-    raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
