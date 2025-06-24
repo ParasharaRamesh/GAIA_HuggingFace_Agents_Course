@@ -20,6 +20,7 @@ def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
         delegate_to_researcher_agent,
         delegate_to_audio_agent,
         delegate_to_visual_agent,
+        # delegate_to_code_agent,
         provide_final_answer
     ]
 
@@ -33,14 +34,8 @@ def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
 
     # 3. Create the ChatPromptTemplate using from_messages
     orchestrator_prompt = ChatPromptTemplate.from_messages([
-        # 1. System Message: Sets the orchestrator's persona and core instructions.
         SystemMessage(content=orchestrator_prompt_content),
-
-        # 2. MessagesPlaceholder: LangGraph injects historical messages here.
-        #    We'll use a pre-model hook to manage these for the orchestrator.
         MessagesPlaceholder(variable_name="messages"),
-
-        # 3. Human Message: Contains the initial input and orchestrator's scratchpad.
         HumanMessage(content="{input}\nThought:{agent_scratchpad}")
     ])
 

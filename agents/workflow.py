@@ -5,11 +5,12 @@ from langgraph.graph import StateGraph, END
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
 from agents.audio import create_audio_agent
+from agents.interpreter import create_code_agent
 from agents.researcher import create_researcher_agent
 from agents.state import GaiaState, SubAgentState
 from agents.generic import create_generic_agent
 from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm, create_audio_llm, \
-    create_visual_llm
+    create_visual_llm, create_interpreter_llm
 from agents.orchestrator import create_orchestrator_agent
 from agents.visual import create_visual_agent
 from tools.visual_tools import read_image_and_encode
@@ -155,7 +156,8 @@ def create_worfklow():
         visual_llm = create_visual_llm()
         print("Visual LLM initialized.\n")
 
-        # TODO. introduce other LLMs later on
+        code_llm = create_interpreter_llm()
+        print("Code LLM initialized.\n")
     except Exception as e:
         print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
         raise
@@ -206,6 +208,16 @@ def create_worfklow():
     )
     workflow.add_node("visual", visual_agent_node_func)
     workflow.add_edge("visual", "orchestrator")
+
+    # code
+    # code_agent = create_code_agent(code_llm)
+    # code_agent_node_func = partial(
+    #     sub_agent_node,
+    #     agent_runnable=code_agent,
+    #     agent_name="code"
+    # )
+    # workflow.add_node("code", code_agent_node_func)
+    # workflow.add_edge("code", "orchestrator")
 
     # router
     workflow.add_node("router", router_node)
