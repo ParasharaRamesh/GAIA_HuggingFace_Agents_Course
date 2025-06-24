@@ -48,9 +48,4 @@ Important Links:
 
 TODO from here!:
 
-. new approach my own multi agent,
-. change state to add subagent input and output,
-. for each sub agent we can add pre model hooks
-. we define our own graph and workflow and inthat we get the output and add it back to the state
-. we just two orchestrator and another sub agent at a time and then later integrate everything.
-. or worst case just have a single agent with access to all tools!
+. for code , i also need another parameter for taking file input for the program, change the prompt accordingly need to check properly. since code is generated and saved and also there might be some other input excel file.. so can have two params for code path and file path

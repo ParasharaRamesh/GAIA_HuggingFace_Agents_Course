@@ -210,14 +210,14 @@ def create_worfklow():
     workflow.add_edge("visual", "orchestrator")
 
     # code
-    # code_agent = create_code_agent(code_llm)
-    # code_agent_node_func = partial(
-    #     sub_agent_node,
-    #     agent_runnable=code_agent,
-    #     agent_name="code"
-    # )
-    # workflow.add_node("code", code_agent_node_func)
-    # workflow.add_edge("code", "orchestrator")
+    code_agent = create_code_agent(code_llm)
+    code_agent_node_func = partial(
+        sub_agent_node,
+        agent_runnable=code_agent,
+        agent_name="code"
+    )
+    workflow.add_node("code", code_agent_node_func)
+    workflow.add_edge("code", "orchestrator")
 
     # router
     workflow.add_node("router", router_node)
@@ -232,6 +232,7 @@ def create_worfklow():
             "researcher": "researcher",
             "audio": "audio",
             "visual": "visual",
+            "code": "code",
             END: END
         }
     )

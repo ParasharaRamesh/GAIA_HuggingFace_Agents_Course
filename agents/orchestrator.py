@@ -20,7 +20,7 @@ def create_orchestrator_agent(orchestrator_llm: BaseChatModel):
         delegate_to_researcher_agent,
         delegate_to_audio_agent,
         delegate_to_visual_agent,
-        # delegate_to_code_agent,
+        delegate_to_code_agent,
         provide_final_answer
     ]
 

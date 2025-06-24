@@ -42,12 +42,15 @@ def delegate_to_visual_agent(query: str, file_path: Optional[str] = None) -> str
     return f"Delegating to visual agent with query: {query}, file_path: {file_path}"
 
 @tool(return_direct=True)
-def delegate_to_code_agent(query: str, file_path: Optional[str] = None) -> str:
+def delegate_to_code_agent(query: str, code_path: Optional[str] = None, input_path: Optional[str] = None) -> str:
     """
-    Delegates a task to the 'code' agent. Use this for any task that involves
-    generating and running code. You MUST provide a 'file_path' to a local python code file.
+    Delegates a task to the 'code' agent. Use this for any task that involves generating and running code.
+
+    code_path could refer to the local path to the provided python file to be run & executed / generated python file to be run & executed
+    input_path could refer to the local path to any provided input file which needs to be parsed by the python program to be generated/excecuted
+
     """
-    return f"Delegating to code agent with query: {query}, file_path: {file_path}"
+    return f"Delegating to code agent with query: {query}, code_path: {code_path}, input_path: {input_path}"
 
 
 @tool(return_direct=True)
