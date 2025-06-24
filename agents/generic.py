@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
-from agents import create_clean_agent_messages_hook
+
 from agents.state import *
 from tools.search_tools import web_search, web_scraper
 
@@ -29,21 +29,8 @@ def create_generic_agent(llm: BaseChatModel):
 
     # Construct the ChatPromptTemplate using from_messages
     react_prompt = ChatPromptTemplate.from_messages([
-        # 1. System Message: This sets the agent's persona and core instructions.
-        #    The content comes directly from the 'react_prompt_content' variable,
-        #    which is now expected to be ONLY the system message content.
         SystemMessage(content=react_prompt_content),
-
-        # 2. MessagesPlaceholder: This is where LangGraph injects the historical messages
-        #    from the overall graph's 'state.messages' into the agent's prompt.
-        #    Our '_clean_agent_messages_hook' will process these messages to ensure
-        #    only relevant ones (for *this* agent's current ReAct cycle) reach the LLM.
         MessagesPlaceholder(variable_name="messages"),
-
-        # 3. Human Message: This contains the specific task delegated by the supervisor
-        #    ({input}) and the agent's internal thought/action/observation history
-        #    for its *current* turn ({agent_scratchpad}).
-        #    These two variables are dynamically filled by create_react_agent.
         HumanMessage(content="{input}\nThought:{agent_scratchpad}")
     ])
 

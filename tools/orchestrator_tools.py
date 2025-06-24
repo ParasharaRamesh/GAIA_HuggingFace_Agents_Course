@@ -14,6 +14,16 @@ def delegate_to_generic_agent(query: str) -> str:
     return f"Delegating to generic agent with {query = }"
 
 @tool(return_direct=True)
+def delegate_to_researcher_agent(query: str) -> str:
+    """
+    Delegates the task to the 'researcher' agent. Use this for tasks that
+    require deep research, fact-checking, or looking up scientific papers
+    on Arxiv and Wikipedia.
+    The 'query' should be a clear, self-contained instruction.
+    """
+    return f"Delegating to researcher agent with {query = }"
+
+@tool(return_direct=True)
 def provide_final_answer(answer: str) -> str:
     """
     Provides the final answer to the user's overall request. Use this tool when

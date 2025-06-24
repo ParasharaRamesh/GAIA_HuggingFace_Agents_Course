@@ -5,8 +5,9 @@ from langgraph.graph import StateGraph, END
 
 from agents.state import GaiaState, SubAgentState
 from agents.generic import create_generic_agent
-from agents.llm import create_orchestrator_llm, create_generic_llm
+from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm
 from agents.orchestrator import create_orchestrator_agent
+
 
 # Helper functions
 def find_last_tool_call_id(messages: list) -> str | None:
@@ -15,6 +16,7 @@ def find_last_tool_call_id(messages: list) -> str | None:
         if isinstance(msg, AIMessage) and msg.tool_calls:
             return msg.tool_calls[0]['id']
     return None
+
 
 # Nodes
 def router_node(state: GaiaState) -> dict:
@@ -45,6 +47,7 @@ def router_node(state: GaiaState) -> dict:
             updates['final_answer'] = final_answer
 
     return updates
+
 
 def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
     """
@@ -80,11 +83,12 @@ def sub_agent_node(state: GaiaState, agent_runnable, agent_name: str) -> dict:
     return {
         "messages": [report_message],
         "subagent_output": final_answer,
-        "current_agent_name": None, # Clear name
-        "subagent_input": None      # Clear input
+        "current_agent_name": None,  # Clear name
+        "subagent_input": None  # Clear input
     }
 
-#Routing functions
+
+# Routing functions
 def route_by_agent_name(state: GaiaState) -> str:
     """
     Determines the next step after the orchestrator has run by inspecting the agent state
@@ -96,6 +100,7 @@ def route_by_agent_name(state: GaiaState) -> str:
         print("No agent designated. Ending workflow.")
         return END
 
+
 # Entire workflow
 def create_worfklow():
     try:
@@ -105,7 +110,10 @@ def create_worfklow():
         generic_llm = create_generic_llm()
         print("Generic LLM initialized.\n")
 
-        #TODO. introduce other LLMs later on
+        researcher_llm = create_researcher_llm()
+        print("Researcher LLM initialized.\n")
+
+        # TODO. introduce other LLMs later on
     except Exception as e:
         print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
         raise
@@ -126,15 +134,28 @@ def create_worfklow():
     )
     workflow.add_node("generic", generic_agent_node_func)
 
+    researcher_agent = create_researcher_llm(researcher_llm)
+    researcher_agent_node_func = partial(
+        sub_agent_node,
+        agent_runnable=researcher_agent,
+        agent_name="researcher"
+    )
+    workflow.add_node("researcher", researcher_agent_node_func)
+
     # add edges
     workflow.add_edge("orchestrator", "router")  # Orchestrator always goes to the router node
     workflow.add_conditional_edges(
-        "router",  # The router node then decides the path
+        "router",
         route_by_agent_name,
-        {"generic": "generic", END: END}
+        {
+            "generic": "generic",
+            "researcher": "researcher",
+            END: END
+        }
     )
 
     workflow.add_edge("generic", "orchestrator")
+    workflow.add_edge("researcher", "orchestrator")
 
     app = workflow.compile()
     print("LangGraph workflow compiled successfully.")

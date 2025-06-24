@@ -7,7 +7,6 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from agents import create_clean_agent_messages_hook
 from agents.state import *
 # Import tools from tools/audio.py
 from tools.audio_tools import transcribe_audio, get_youtube_transcript
@@ -81,6 +80,5 @@ def create_audio_agent(llm: BaseChatModel):
         name="audio",  # Ensure consistent naming
         debug=True,
         state_schema=SubAgentState,
-        pre_model_hook = create_clean_agent_messages_hook("audio")
     )
     return audio_agent_runnable
