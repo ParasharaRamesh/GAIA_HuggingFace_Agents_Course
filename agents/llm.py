@@ -225,7 +225,7 @@ def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool =
 
     # OpenRouter
     if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-3.3-8b-instruct:free")
+        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
         if llm: return llm
         print("~"*60)
 
