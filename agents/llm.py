@@ -241,15 +241,13 @@ def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool =
 def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     # HuggingFace (some multi-modal models like Llava might be available as endpoints)
     if use_hf:
-        llm = _create_hf_llm(
-            "meta-llama/Llama-3.2-11B-Vision-Instruct")  # Check if this specific endpoint is available or other Llava models
+        llm = _create_hf_llm("meta-llama/Llama-3.2-11B-Vision-Instruct")
         if llm: return llm
         print("~"*60)
 
     # OpenRouter (often has access to multi-modal models)
     if use_or:
-        llm = _create_openrouter_llm("meta-llama/llama-4-maverick:free")  # Example, check OpenRouter's list for actual ID
-        # google/gemma-3-27b-it:free also works
+        llm = _create_openrouter_llm("mistralai/mistral-small-3.2-24b-instruct:free")
         if llm: return llm
         print("~"*60)
 

@@ -8,8 +8,10 @@ from agents.audio import create_audio_agent
 from agents.researcher import create_researcher_agent
 from agents.state import GaiaState, SubAgentState
 from agents.generic import create_generic_agent
-from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm, create_audio_llm
+from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm, create_audio_llm, \
+    create_visual_llm
 from agents.orchestrator import create_orchestrator_agent
+from agents.visual import create_visual_agent
 
 
 # Helper functions
@@ -124,6 +126,9 @@ def create_worfklow():
         audio_llm = create_audio_llm()
         print("Audio LLM initialized.\n")
 
+        visual_llm = create_visual_llm()
+        print("Visual LLM initialized.\n")
+
         # TODO. introduce other LLMs later on
     except Exception as e:
         print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
@@ -166,6 +171,16 @@ def create_worfklow():
     workflow.add_node("audio", audio_agent_node_func)
     workflow.add_edge("audio", "orchestrator")
 
+    # visual
+    visual_agent = create_visual_agent(visual_llm)
+    visual_agent_node_func = partial(
+        sub_agent_node,
+        agent_runnable=visual_agent,
+        agent_name="visual"
+    )
+    workflow.add_node("visual", visual_agent_node_func)
+    workflow.add_edge("visual", "orchestrator")
+
     # router
     workflow.add_node("router", router_node)
     workflow.add_edge("orchestrator", "router")
@@ -178,6 +193,7 @@ def create_worfklow():
             "generic": "generic",
             "researcher": "researcher",
             "audio": "audio",
+            "visual": "visual",
             END: END
         }
     )

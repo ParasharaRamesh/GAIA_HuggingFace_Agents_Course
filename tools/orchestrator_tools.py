@@ -34,6 +34,14 @@ def delegate_to_audio_agent(query: str, file_path: Optional[str] = None, youtube
     return f"Delegating to audio agent with query: {query}, file_path: {file_path}, youtube_url: {youtube_url}"
 
 @tool(return_direct=True)
+def delegate_to_visual_agent(query: str, file_path: Optional[str] = None) -> str:
+    """
+    Delegates a task to the 'visual' agent. Use this for any task that involves
+    analyzing an image. You MUST provide a 'file_path' to a local image file.
+    """
+    return f"Delegating to visual agent with query: {query}, file_path: {file_path}"
+
+@tool(return_direct=True)
 def provide_final_answer(answer: str) -> str:
     """
     Provides the final answer to the user's overall request. Use this tool when
