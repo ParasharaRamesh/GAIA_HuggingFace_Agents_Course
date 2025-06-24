@@ -4,10 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
+from agents.audio import create_audio_agent
 from agents.researcher import create_researcher_agent
 from agents.state import GaiaState, SubAgentState
 from agents.generic import create_generic_agent
-from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm
+from agents.llm import create_orchestrator_llm, create_generic_llm, create_researcher_llm, create_audio_llm
 from agents.orchestrator import create_orchestrator_agent
 
 
@@ -120,6 +121,9 @@ def create_worfklow():
         researcher_llm = create_researcher_llm()
         print("Researcher LLM initialized.\n")
 
+        audio_llm = create_audio_llm()
+        print("Audio LLM initialized.\n")
+
         # TODO. introduce other LLMs later on
     except Exception as e:
         print(f"Error initializing LLMs. Ensure API keys are set: {e}\n")
@@ -152,6 +156,16 @@ def create_worfklow():
     workflow.add_node("researcher", researcher_agent_node_func)
     workflow.add_edge("researcher", "orchestrator")
 
+    # audio
+    audio_agent = create_audio_agent(audio_llm)
+    audio_agent_node_func = partial(
+        sub_agent_node,
+        agent_runnable=audio_agent,
+        agent_name="audio"
+    )
+    workflow.add_node("audio", audio_agent_node_func)
+    workflow.add_edge("audio", "orchestrator")
+
     # router
     workflow.add_node("router", router_node)
     workflow.add_edge("orchestrator", "router")
@@ -163,6 +177,7 @@ def create_worfklow():
         {
             "generic": "generic",
             "researcher": "researcher",
+            "audio": "audio",
             END: END
         }
     )
