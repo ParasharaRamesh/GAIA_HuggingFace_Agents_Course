@@ -28,13 +28,6 @@ List of tools I need:
 
 Agents workflow diagram refer to analysis/visualization.ipynb
 
-Thoughts/Potential TODOS:
-
-. will the planner guarantee that it can use code agent whenever it wants using the output of another agent?
-. can use vjepa and vjepa 2 for visual analysis tools
-. return only a part of the chunk (example summary if present) to the LLM context window while indexing the rest into the DB
-. use langfuse for debugging
-. perhaps a requests tool, this way it would have the tools download anything and if need be save it.
 
 Important Links:
 
@@ -44,11 +37,4 @@ Important Links:
 * https://github.com/huggingface/smolagents/blob/main/examples/open_deep_research/scripts/text_inspector_tool.py
 * https://python.langchain.com/docs/integrations/tools/
 * Refer to that article from langgraph which talks about how to build multi agent systems (swarm)
-
-
-TODO from here!:
-
-. for code , i also need another parameter for taking file input for the program, change the prompt accordingly need to check properly. since code is generated and saved and also there might be some other input excel file.. so can have two params for code path and file path(handled)
-
-. test all the interpreter tools seperately
-. have some kind of fallback llm initialization in case of errors and switch between hugging face and this
+ase of errors and switch between hugging face and this
