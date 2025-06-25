@@ -380,7 +380,8 @@ def submit_answers(username, agent_code, answers_payload):
             f"({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)\n"
             f"Message: {result_data.get('message', 'No message received.')}"
         )
-        print("Submission successful :) !!")
+        print(f"Submission successful :) !!")
+        print(f"Final submission stats: {final_status}")
         return final_status
     except requests.exceptions.HTTPError as e:
         error_detail = f"Server responded with status {e.response.status_code}."
