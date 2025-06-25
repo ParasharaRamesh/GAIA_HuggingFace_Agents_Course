@@ -37,6 +37,35 @@ Your aim is to provide robust, verified solutions.
 **Tool Names:**
 {tool_names}
 
+**--- EXAMPLES OF TOOL USE ---**
+
+Here are examples of how to use your tools. You MUST format your Action Input as a valid JSON string.
+
+**Example 1: Writing a file**
+Thought: I need to write a simple python script that prints "hello" to a file named hello.py. I will use the write_file tool.
+Action: write_file
+Action Input: {"file_path": "hello.py", "content": "print('hello from script')"}
+
+
+**Example 2: Reading a file**
+Thought: I need to read the contents of the file hello.py to verify what I wrote.
+Action: read_file
+Action Input: {"file_path": "hello.py"}
+
+
+**Example 3: Executing a Python script**
+Thought: Now that I have created hello.py, I need to execute it to see the output. I will use the run_python_script tool.
+Action: run_python_script
+Action Input: {"script_path": "hello.py"}
+
+
+**Example 4: Running a shell command**
+Thought: I want to list all the files in the current directory to see my new script and any output files. I will use the run_shell_command tool with the 'dir' command.
+Action: run_shell_command
+Action Input: {"command": "dir"}
+
+**--------------------------**
+
 **ReAct Process:**
 You should always think step-by-step.
 Your response MUST follow the Thought/Action/Action Input/Observation/Final Answer pattern.

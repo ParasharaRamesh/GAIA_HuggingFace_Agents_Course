@@ -48,7 +48,7 @@ def write_file(file_path: str, content: str) -> str:
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"Content successfully written to '{file_path}'."
+        return f"Content {content} successfully written to '{file_path}'."
     except Exception as e:
         return f"Error writing to file '{file_path}': {str(e)}"
 
@@ -70,6 +70,7 @@ def run_shell_command(command: str) -> str:
     """
     try:
         # Using shell=True for convenience, but be mindful of security if exposed directly to untrusted input.
+        print(f"running shell command {command}")
         result = subprocess.run(
             command,
             shell=True,
@@ -79,6 +80,7 @@ def run_shell_command(command: str) -> str:
             timeout=120  # Timeout after 120 seconds
         )
         output = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        print(f"shell output: {output}")
         return output
     except subprocess.CalledProcessError as e:
         return (f"Error: Command '{e.cmd}' failed with exit code {e.returncode}.\n"
@@ -117,6 +119,9 @@ def run_python_script(script_path: str) -> Dict[str, Any]:
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"Python script '{script_path}' not found in current directory.")
 
+        content = read_file(script_path)
+        print(f"Content read from {script_path} is {content}")
+
         # Get initial files in current directory before execution
         initial_files = set(os.listdir(current_dir)) if os.path.exists(current_dir) else set()
 
@@ -152,12 +157,15 @@ def run_python_script(script_path: str) -> Dict[str, Any]:
     except Exception as e:
         stderr = f"An unexpected error occurred: {str(e)}"
 
-    return {
+    result = {
+        "script_path": script_path,
         "status": status,
         "stdout": stdout,
         "stderr": stderr,
         "created_files": created_files
     }
+    print(f"run-python-script result is {result}")
+    return result
 
 if __name__ == '__main__':
     # Define test filenames and content
