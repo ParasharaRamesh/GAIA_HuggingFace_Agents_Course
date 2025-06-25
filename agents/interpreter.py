@@ -6,7 +6,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.prebuilt.chat_agent_executor import create_react_agent
 
 from agents.state import *
-from tools.interpreter_tools import read_file, write_file, run_shell_command, run_python_script
+from tools.interpreter_tools import read_file, run_shell_command, run_python_script, run_generated_python_code
 from tools.search_tools import web_search, web_scraper
 
 def create_code_agent(llm: BaseChatModel):
@@ -16,10 +16,10 @@ def create_code_agent(llm: BaseChatModel):
     """
     # Define the tools available to the CodeAgent
     tools = [
-        read_file,
-        write_file,
-        run_shell_command,
         run_python_script,
+        run_generated_python_code,
+        read_file,
+        run_shell_command,
         web_search,
         web_scraper
     ]

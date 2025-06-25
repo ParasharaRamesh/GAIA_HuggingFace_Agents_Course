@@ -244,7 +244,7 @@ def create_audio_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool =
     raise ValueError("Failed to instantiate Audio LLM from any provider.")
 
 
-def create_visual_llm(use_hf: bool = True, use_or: bool = False, use_groq: bool = False):
+def create_visual_llm(use_hf: bool = False, use_or: bool = True, use_groq: bool = False):
     # HuggingFace (some multi-modal models like Llava might be available as endpoints)
     if use_hf:
         llm = _create_hf_llm("meta-llama/Llama-3.2-11B-Vision-Instruct")
@@ -272,7 +272,8 @@ def create_interpreter_llm(use_hf: bool = False, use_or: bool = True, use_groq: 
 
     # Then try OpenRouter
     if use_or:
-        llm = _create_openrouter_llm("mistralai/devstral-small:free")
+        # llm = _create_openrouter_llm("mistralai/devstral-small:free")
+        llm = _create_openrouter_llm("deepseek/deepseek-chat-v3-0324:free")
         if llm: return llm
         print("~" * 60)
 

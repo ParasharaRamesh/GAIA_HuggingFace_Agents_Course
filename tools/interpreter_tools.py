@@ -1,48 +1,11 @@
 import os
 import subprocess
+import uuid
 from typing import Dict, Any, Optional, List
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
-
-
-# Schema
-class WriteFileInput(BaseModel):
-    file_path: str = Field(description="The relative path where the file will be written, e.g., 'my_script.py'.")
-    content: str = Field(description="The string content to write into the file.")
 
 
 # --- File System Tools ---
-
-@tool(args_schema=WriteFileInput)
-def write_file(tool_input: WriteFileInput) -> Dict[str, str]:
-    """
-    Writes or overwrites a file on the local filesystem with the given string content.
-    This tool is essential for creating Python scripts or saving text data.
-
-    Args:
-        tool_input (WriteFileInput): An object containing the required arguments.
-            - file_path (str): The relative path where the file will be written.
-                               Example: 'my_new_script.py'.
-            - content (str): The string content to write into the file.
-
-    Returns:
-        Dict[str, str]: A dictionary indicating the result of the operation.
-                        On success: {'status': 'success', 'message': 'Content successfully written to file.'}.
-                        On failure: {'status': 'error', 'message': 'Error message...'}.
-    """
-    file_path = tool_input.file_path
-    content = tool_input.content
-    try:
-        dir_name = os.path.dirname(file_path)
-        if dir_name and not os.path.exists(dir_name):
-            os.makedirs(dir_name)
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return {"status": "success", "message": f"Content successfully written to '{file_path}'."}
-    except Exception as e:
-        return {"status": "error", "message": f"Error writing to file '{file_path}': {str(e)}"}
-
 
 @tool
 def read_file(file_path: str) -> Dict[str, str]:
@@ -186,8 +149,36 @@ def run_python_script(script_path: str) -> Dict[str, Any]:
     return result
 
 
+@tool
+def run_generated_python_code(code: str) -> Dict[str, Any]:
+    """
+    Executes a string of Python code by first writing it to a temporary script file
+    and then running that file. This is the primary tool for solving tasks that require
+    generating and running new code. The code string should be a complete, runnable script
+    that prints its final result to stdout.
+
+    Args:
+        code (str): A string containing the complete Python code to be executed.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the execution result with keys for
+                        'status', 'stdout', and 'stderr'.
+    """
+    script_filename = f"temp_script_{uuid.uuid4()}.py"
+    try:
+        with open(script_filename, "w", encoding="utf-8") as f:
+            f.write(code)
+
+        # We can reuse the logic from run_python_script
+        return run_python_script.invoke({"script_path": script_filename})
+
+    except Exception as e:
+        return {"status": "error",
+                "message": f"An unexpected error occurred while trying to write and run the code: {str(e)}"}
+    finally:
+        # Ensure the temporary script is always cleaned up
+        if os.path.exists(script_filename):
+            os.remove(script_filename)
+
 if __name__ == '__main__':
-    write_file.invoke({
-        "file_path": "calculation.py",
-        "content": "result = (5 * 75) + (98 * 23)\nprint(f'The result of (5 * 75) + (98 * 23) is: {result}')"}
-    )
+    pass
