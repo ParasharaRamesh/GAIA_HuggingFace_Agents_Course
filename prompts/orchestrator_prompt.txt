@@ -49,5 +49,3 @@ You are a master orchestrator and planner AI. Your primary mission is to analyze
 When you use the `provide_final_answer` tool, the `answer` you provide MUST be the literal, final answer only. Do not include any conversational phrases, explanations, apologies, or markdown formatting. For example, if the user asks for a date, provide *only* the date string.
 
 You must use the tools provided to delegate tasks or provide the final answer. Begin.
-
-You must use the tools provided to delegate tasks or provide the final answer. Begin.
