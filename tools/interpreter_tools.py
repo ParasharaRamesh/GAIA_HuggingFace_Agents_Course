@@ -90,7 +90,7 @@ def run_shell_command(command: str) -> str:
         return f"An unexpected error occurred while running command: {str(e)}"
 
 @tool
-def run_python_script(file_path: str) -> Dict[str, Any]:
+def run_python_script(script_path: str) -> Dict[str, Any]:
     """
     Executes a Python script located at `file_path` using a new Python subprocess.
     The script is executed in the current working directory ('.').
@@ -98,7 +98,7 @@ def run_python_script(file_path: str) -> Dict[str, Any]:
     in the current directory during execution.
 
     Args:
-        file_path (str): The path to the Python script to execute, relative to the current directory ('.').
+        script_path (str): The path to the Python script to execute, relative to the current directory ('.').
 
     Returns:
         Dict[str, Any]: A dictionary containing:
@@ -114,15 +114,15 @@ def run_python_script(file_path: str) -> Dict[str, Any]:
     current_dir = os.getcwd()
 
     try:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Python script '{file_path}' not found in current directory.")
+        if not os.path.exists(script_path):
+            raise FileNotFoundError(f"Python script '{script_path}' not found in current directory.")
 
         # Get initial files in current directory before execution
         initial_files = set(os.listdir(current_dir)) if os.path.exists(current_dir) else set()
 
         # Execute the Python script
         result = subprocess.run(
-            ["python", file_path], # No need for basename or changing dir
+            ["python", script_path], # No need for basename or changing dir
             capture_output=True,
             text=True,
             timeout=180 # Timeout after 180 seconds (3 minutes)
@@ -158,3 +158,6 @@ def run_python_script(file_path: str) -> Dict[str, Any]:
         "stderr": stderr,
         "created_files": created_files
     }
+
+if __name__ == '__main__':
+    pass

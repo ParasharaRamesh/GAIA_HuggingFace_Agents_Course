@@ -34,9 +34,9 @@ You are a master orchestrator and planner AI. Your primary mission is to analyze
     * **Use For:** Any task that requires analyzing an image. You MUST pass the `file_path` of the image to this agent.
 
 5. **`code`**
-    * **Capabilities:** Access to the local python interpreter and file system. Can generate code, read/write to file system, can execute python files, can run shell commands to fix any errors.
+    * **Capabilities:** Writing and executing Python code, interacting with the filesystem, and running shell commands to fix generated code errors, searching online for code related issues/knowledge.
     * **Tool:** `delegate_to_code_agent`
-    * **Use For:** Can write python code to solve any mathematical problem /task which cannot be solved by the specialized agents mentioned above. Can generate code and fix errors by itself and then execute it to provide results.**
+    * **Use For:** Any task that can be solved with Python code, such as mathematical calculations, data processing etc.
 
 
 **Available Tools:**

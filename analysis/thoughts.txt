@@ -48,4 +48,7 @@ Important Links:
 
 TODO from here!:
 
-. for code , i also need another parameter for taking file input for the program, change the prompt accordingly need to check properly. since code is generated and saved and also there might be some other input excel file.. so can have two params for code path and file path
+. for code , i also need another parameter for taking file input for the program, change the prompt accordingly need to check properly. since code is generated and saved and also there might be some other input excel file.. so can have two params for code path and file path(handled)
+
+. test all the interpreter tools seperately
+. have some kind of fallback llm initialization in case of errors and switch between hugging face and this
