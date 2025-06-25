@@ -160,4 +160,73 @@ def run_python_script(script_path: str) -> Dict[str, Any]:
     }
 
 if __name__ == '__main__':
-    pass
+    # Define test filenames and content
+    test_txt_filename = "test_file.txt"
+    test_py_filename = "test_script.py"
+    test_py_output_filename = "output_from_script.txt"
+
+    test_txt_content = "Hello from the test suite!"
+    test_py_content = (
+        'import sys\n'
+        'print("This is stdout from the test script.")\n'
+        'print("This is stderr from the test script.", file=sys.stderr)\n'
+        'with open("output_from_script.txt", "w") as f:\n'
+        '    f.write("This file was created by the python script.")\n'
+    )
+
+    try:
+        # === Test 1: write_file tool ===
+        print("--- Testing: write_file ---")
+        result_write = write_file.invoke({"file_path": test_txt_filename, "content": test_txt_content})
+        print(result_write)
+        assert os.path.exists(test_txt_filename), "write_file did not create the file!"
+        with open(test_txt_filename, "r") as f:
+            assert f.read() == test_txt_content, "write_file did not write the correct content!"
+        print("✅ write_file PASSED\n")
+
+        # === Test 2: read_file tool ===
+        print("--- Testing: read_file ---")
+        result_read = read_file.invoke({"file_path": test_txt_filename})
+        print(result_read)
+        assert test_txt_content in result_read, "read_file did not return the correct content!"
+        print("✅ read_file PASSED\n")
+
+        # === Test 3: run_shell_command tool ===
+        print("--- Testing: run_shell_command ---")
+        result_shell = run_shell_command.invoke({"command": 'dir'})
+        print(result_shell)
+        print("✅ run_shell_command PASSED\n")
+
+        # === Test 4: run_python_script tool ===
+        # This is a multi-step test. First, we write the script to test.
+        print("--- Testing: run_python_script ---")
+        print(f"(Step 4.1: Writing '{test_py_filename}' to disk...)")
+        write_file.invoke({"file_path": test_py_filename, "content": test_py_content})
+        assert os.path.exists(test_py_filename), "Failed to create the test python script."
+        print("(Step 4.1: Done.)")
+
+        # Now, execute the script we just wrote
+        print(f"(Step 4.2: Executing '{test_py_filename}'...)")
+        # Note: Using the recommended 'script_path' argument name
+        result_py = run_python_script.invoke({"script_path": test_py_filename})
+        print(f"Result from run_python_script:\n{result_py}")
+
+        # Verify all parts of the result
+        assert result_py['status'] == 'success', "Python script did not run successfully."
+        assert "This is stdout" in result_py['stdout'], "Did not capture stdout correctly."
+        assert "This is stderr" in result_py['stderr'], "Did not capture stderr correctly."
+        assert os.path.exists(test_py_output_filename), "Python script did not create its output file."
+        assert len(result_py['created_files']) > 0, "Did not detect created files."
+        assert test_py_output_filename in result_py['created_files'][0], "Did not report the correct created file."
+        print("✅ run_python_script PASSED\n")
+
+        print("--- All tools passed! ---")
+
+    finally:
+        # --- Cleanup: Remove all test files ---
+        print("\n--- Cleaning up test files ---")
+        for f in [test_txt_filename, test_py_filename, test_py_output_filename]:
+            if os.path.exists(f):
+                os.remove(f)
+                print(f"Removed '{f}'")
+        print("--- Cleanup complete ---")
